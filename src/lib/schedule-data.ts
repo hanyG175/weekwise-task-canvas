@@ -8,7 +8,7 @@ export interface Task {
   end: string;
   title: string;
   cat: Category;
-  note?: string;
+  note?: string | undefined;
 }
 
 export const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
@@ -216,7 +216,7 @@ export function defaultSchedule(): Record<Day, Task[]> {
 
 export const toMin = (t: string) => {
   const [h, m] = t.split(":").map(Number);
-  return h * 60 + m;
+  return (h ?? 0) * 60 + (m ?? 0);
 };
 
 /** ISO-week key like "2026-W43"; weeks start Monday. */
@@ -238,5 +238,5 @@ export function applyWeeklyReset<T extends { weekKey: string; done: Record<strin
 }
 
 export function todayDay(now: Date): Day {
-  return DAYS[(now.getDay() + 6) % 7];
+  return DAYS[(now.getDay() + 6) % 7]!;
 }

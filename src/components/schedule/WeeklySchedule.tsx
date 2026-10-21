@@ -163,9 +163,9 @@ export function WeeklySchedule() {
         <section className="mt-8 rounded-3xl border border-border bg-card/60 p-4 shadow-card backdrop-blur sm:p-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <Button size="icon" variant="ghost" aria-label="Previous day" onClick={() => setDay(DAYS[(dayIdx + 6) % 7])}><ChevronLeft /></Button>
+              <Button size="icon" variant="ghost" aria-label="Previous day" onClick={() => setDay(DAYS[(dayIdx + 6) % 7]!)}><ChevronLeft /></Button>
               <h2 className="font-display text-2xl font-semibold">{DAY_NAMES[day]}</h2>
-              <Button size="icon" variant="ghost" aria-label="Next day" onClick={() => setDay(DAYS[(dayIdx + 1) % 7])}><ChevronRight /></Button>
+              <Button size="icon" variant="ghost" aria-label="Next day" onClick={() => setDay(DAYS[(dayIdx + 1) % 7]!)}><ChevronRight /></Button>
               <span className="ml-2 font-mono text-sm text-muted-foreground">{progress(day).pct}% complete</span>
             </div>
             <Button
