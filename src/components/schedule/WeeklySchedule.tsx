@@ -223,6 +223,9 @@ export function WeeklySchedule() {
           </div>
         </section>
 
+        <CategoryProgress tasks={state.tasks} done={state.done} day={day} />
+
+
         <footer className="mt-8 flex flex-wrap items-center justify-between gap-3 pb-6 font-mono text-xs text-muted-foreground">
           <span>Check-offs reset automatically every Monday. Your edits are saved on this device.</span>
           <button className="underline-offset-4 hover:text-foreground hover:underline" onClick={() => setConfirm("defaults")}>
