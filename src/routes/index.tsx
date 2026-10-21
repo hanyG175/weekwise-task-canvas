@@ -1,24 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { WeeklySchedule } from "@/components/schedule/WeeklySchedule";
 
-// No head() here: the home route inherits title/description/og/twitter from
-// __root.tsx, and ships no og:image so serve-time hosting can inject the
-// project's social preview (explicit og:image or latest screenshot).
 export const Route = createFileRoute("/")({
-  component: Index,
+  head: () => ({
+    meta: [
+      { title: "Weekly Schedule — Minute by Minute" },
+      { name: "description", content: "An interactive horizontal weekly schedule: check off tasks, edit your days and start fresh every week." },
+      { property: "og:title", content: "Weekly Schedule — Minute by Minute" },
+      { property: "og:description", content: "Interactive weekly routine with prayers, focus slots, workouts and rest." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+    ],
+  }),
+  component: WeeklySchedule,
 });
-
-// IMPORTANT: Replace this placeholder. See ./README.md for routing conventions.
-function Index() {
-  return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
-    </div>
-  );
-}
