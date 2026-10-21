@@ -223,6 +223,9 @@ export function WeeklySchedule() {
           </div>
         </section>
 
+        <CategoryProgress tasks={state.tasks} done={state.done} day={day} />
+
+
         <footer className="mt-8 flex flex-wrap items-center justify-between gap-3 pb-6 font-mono text-xs text-muted-foreground">
           <span>Check-offs reset automatically every Monday. Your edits are saved on this device.</span>
           <button className="underline-offset-4 hover:text-foreground hover:underline" onClick={() => setConfirm("defaults")}>
@@ -301,7 +304,40 @@ function DayTimeline({ tasks, done, nowMin, onToggle, onEdit }: {
             const w = (e - s) * PX;
             const isDone = !!done[t.id];
             const isNow = nowMin >= s && nowMin < e;
-            const narrow = w < 90;
+            const compact = w < 130;
+            const tiny = w < 34;
+            const check = (
+              <span className={cn(
+                "flex shrink-0 items-center justify-center rounded-full border transition-all duration-300",
+                tiny ? "size-4" : "size-5",
+                isDone ? "border-primary bg-primary text-primary-foreground" : "border-foreground/30 bg-background/40",
+              )}>
+                {isDone && <Check className={tiny ? "size-2.5" : "size-3"} />}
+              </span>
+            );
+            const full = (
+              <div className="flex h-full min-w-0 flex-col justify-between">
+                <div className="min-w-0">
+                  <div className={cn("truncate font-mono text-[10px] font-medium uppercase tracking-wider", TEXT[t.cat])}>
+                    {CATEGORIES[t.cat].label}
+                  </div>
+                  <div className={cn("mt-1 line-clamp-3 text-sm font-semibold leading-snug", isDone && "line-through")}>{t.title}</div>
+                </div>
+                <div className="flex items-end justify-between gap-1">
+                  <span className="truncate font-mono text-[10px] text-muted-foreground">{t.start} · {fmtDur(e - s)}</span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      aria-label={`Edit ${t.title}`}
+                      onClick={(ev) => { ev.stopPropagation(); onEdit(t); }}
+                      className="rounded-md p-1 text-muted-foreground opacity-0 transition hover:bg-accent hover:text-foreground group-hover:opacity-100 group-focus-visible:opacity-100"
+                    >
+                      <Pencil className="size-3" />
+                    </button>
+                    {check}
+                  </div>
+                </div>
+              </div>
+            );
             return (
               <div
                 key={t.id}
@@ -311,41 +347,31 @@ function DayTimeline({ tasks, done, nowMin, onToggle, onEdit }: {
                 onClick={() => onToggle(t.id)}
                 onKeyDown={(ev) => (ev.key === "Enter" || ev.key === " ") && (ev.preventDefault(), onToggle(t.id))}
                 className={cn(
-                  "group absolute top-3 bottom-3 cursor-pointer overflow-hidden rounded-xl border border-border bg-secondary/70 p-2.5 transition-all duration-300 hover:-translate-y-1 hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  "group absolute top-3 bottom-3 cursor-pointer overflow-hidden rounded-xl border border-border transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  compact
+                    ? "bg-secondary/50 hover:z-20 hover:!w-[190px] hover:bg-popover hover:shadow-card focus-visible:z-20 focus-visible:!w-[190px] focus-visible:bg-popover"
+                    : "bg-secondary/70 p-2.5 hover:-translate-y-1 hover:bg-secondary",
                   isNow && "ring-2 ring-primary",
-                  isDone && "opacity-45",
+                  isDone && "opacity-45 hover:opacity-100",
                 )}
                 style={{ left: (s - START) * PX + 1, width: w - 3 }}
               >
                 <div className={cn("absolute inset-x-0 top-0 h-1", BG[t.cat])} />
-                <div className="flex h-full flex-col justify-between">
-                  <div>
-                    <div className={cn("font-mono text-[10px] font-medium uppercase tracking-wider", TEXT[t.cat])}>
-                      {narrow ? CATEGORIES[t.cat].short : CATEGORIES[t.cat].label}
+                {compact ? (
+                  <>
+                    {/* slim view: icon, check, duration stacked — no rotated text */}
+                    <div className="flex h-full flex-col items-center justify-between py-2.5 transition-opacity duration-200 group-hover:opacity-0 group-focus-visible:opacity-0">
+                      <span className={cn("font-mono text-xs font-semibold", TEXT[t.cat])}>{CATEGORIES[t.cat].short}</span>
+                      <span className={cn("h-10 w-1 rounded-full opacity-60", BG[t.cat])} />
+                      {!tiny && <span className="font-mono text-[9px] text-muted-foreground">{fmtDur(e - s)}</span>}
+                      {check}
                     </div>
-                    <div className={cn("mt-1 text-sm font-semibold leading-snug", narrow && "[writing-mode:vertical-rl] mt-2 text-xs", isDone && "line-through")}>
-                      {narrow && w < 45 ? "" : t.title}
+                    {/* expands on hover to show full details */}
+                    <div className="absolute inset-0 w-[190px] p-2.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100">
+                      {full}
                     </div>
-                  </div>
-                  <div className="flex items-end justify-between gap-1">
-                    {!narrow && <span className="font-mono text-[10px] text-muted-foreground">{t.start} · {fmtDur(e - s)}</span>}
-                    <div className="flex items-center gap-1">
-                      <button
-                        aria-label={`Edit ${t.title}`}
-                        onClick={(ev) => { ev.stopPropagation(); onEdit(t); }}
-                        className="rounded-md p-1 text-muted-foreground opacity-0 transition hover:bg-accent hover:text-foreground group-hover:opacity-100"
-                      >
-                        <Pencil className="size-3" />
-                      </button>
-                      <span className={cn(
-                        "flex size-5 items-center justify-center rounded-full border transition-all duration-300",
-                        isDone ? "scale-100 border-primary bg-primary text-primary-foreground" : "border-border",
-                      )}>
-                        {isDone && <Check className="size-3" />}
-                      </span>
-                    </div>
-                  </div>
-                </div>
+                  </>
+                ) : full}
               </div>
             );
           })}
@@ -420,5 +446,55 @@ function TaskDialog({ editing, onClose, onSave, onDelete }: {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function CategoryProgress({ tasks, done, day }: {
+  tasks: Record<Day, Task[]>; done: Record<string, boolean>; day: Day;
+}) {
+  const [scope, setScope] = useState<"week" | "day">("week");
+  const rows = (Object.keys(CATEGORIES) as Category[]).map((c) => {
+    const list = (scope === "week" ? DAYS.flatMap((d) => tasks[d]) : tasks[day]).filter((t) => t.cat === c);
+    const doneList = list.filter((t) => done[t.id]);
+    const mins = (l: Task[]) => l.reduce((a, t) => a + toMin(t.end) - toMin(t.start), 0);
+    return { c, total: list.length, n: doneList.length, mins: mins(list), doneMins: mins(doneList) };
+  }).filter((r) => r.total > 0);
+
+  return (
+    <section className="mt-8 rounded-3xl border border-border bg-card/40 p-4 sm:p-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="font-display text-xl font-semibold">Progress by category</h2>
+        <div className="flex rounded-full border border-border bg-muted/40 p-1 font-mono text-xs">
+          {(["week", "day"] as const).map((s) => (
+            <button key={s} onClick={() => setScope(s)}
+              className={cn("rounded-full px-3 py-1 transition", scope === s ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>
+              {s === "week" ? "This week" : DAY_NAMES[day]}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {rows.map((r) => {
+          const pct = Math.round((r.n / r.total) * 100);
+          return (
+            <div key={r.c} className="rounded-2xl border border-border bg-card/60 p-4 transition hover:bg-card">
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-2 text-sm font-semibold">
+                  <span className={cn("size-2.5 rounded-full", BG[r.c])} />{CATEGORIES[r.c].label}
+                </span>
+                <span className={cn("font-mono text-sm", TEXT[r.c])}>{pct}%</span>
+              </div>
+              <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
+                <div className={cn("h-full rounded-full transition-all duration-700", BG[r.c])} style={{ width: `${pct}%` }} />
+              </div>
+              <div className="mt-2 flex justify-between font-mono text-[11px] text-muted-foreground">
+                <span>{r.n}/{r.total} done</span>
+                <span>{fmtDur(r.doneMins)} / {fmtDur(r.mins)}</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }
