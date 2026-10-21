@@ -445,3 +445,53 @@ function TaskDialog({ editing, onClose, onSave, onDelete }: {
     </Dialog>
   );
 }
+
+function CategoryProgress({ tasks, done, day }: {
+  tasks: Record<Day, Task[]>; done: Record<string, boolean>; day: Day;
+}) {
+  const [scope, setScope] = useState<"week" | "day">("week");
+  const rows = (Object.keys(CATEGORIES) as Category[]).map((c) => {
+    const list = (scope === "week" ? DAYS.flatMap((d) => tasks[d]) : tasks[day]).filter((t) => t.cat === c);
+    const doneList = list.filter((t) => done[t.id]);
+    const mins = (l: Task[]) => l.reduce((a, t) => a + toMin(t.end) - toMin(t.start), 0);
+    return { c, total: list.length, n: doneList.length, mins: mins(list), doneMins: mins(doneList) };
+  }).filter((r) => r.total > 0);
+
+  return (
+    <section className="mt-8 rounded-3xl border border-border bg-card/40 p-4 sm:p-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="font-display text-xl font-semibold">Progress by category</h2>
+        <div className="flex rounded-full border border-border bg-muted/40 p-1 font-mono text-xs">
+          {(["week", "day"] as const).map((s) => (
+            <button key={s} onClick={() => setScope(s)}
+              className={cn("rounded-full px-3 py-1 transition", scope === s ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>
+              {s === "week" ? "This week" : DAY_NAMES[day]}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {rows.map((r) => {
+          const pct = Math.round((r.n / r.total) * 100);
+          return (
+            <div key={r.c} className="rounded-2xl border border-border bg-card/60 p-4 transition hover:bg-card">
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-2 text-sm font-semibold">
+                  <span className={cn("size-2.5 rounded-full", BG[r.c])} />{CATEGORIES[r.c].label}
+                </span>
+                <span className={cn("font-mono text-sm", TEXT[r.c])}>{pct}%</span>
+              </div>
+              <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
+                <div className={cn("h-full rounded-full transition-all duration-700", BG[r.c])} style={{ width: `${pct}%` }} />
+              </div>
+              <div className="mt-2 flex justify-between font-mono text-[11px] text-muted-foreground">
+                <span>{r.n}/{r.total} done</span>
+                <span>{fmtDur(r.doneMins)} / {fmtDur(r.mins)}</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
