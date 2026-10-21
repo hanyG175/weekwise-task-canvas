@@ -57,9 +57,6 @@ const morning: Row[] = [
   ["07:45", "08:00", "Desk setup, today's top 3", "routine"],
 ];
 
-const SLOTS: Record<string, Record<"Mon" | "Tue" | "Wed" | "Thu", Category | null>> = {
-  S5: { Mon: "O", Tue: "O", Wed: "O", Thu: "O" },
-};
 
 function coreDay(s7: Category, s8Buffer: boolean, workout: boolean): Row[] {
   const rows: Row[] = [
@@ -106,7 +103,6 @@ function coreDay(s7: Category, s8Buffer: boolean, workout: boolean): Row[] {
   }
   return rows;
 }
-void SLOTS;
 
 const windDown: Row[] = [
   ["20:45", "21:00", "Log trackers, tomorrow's top 3", "routine"],
