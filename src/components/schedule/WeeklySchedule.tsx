@@ -4,6 +4,7 @@ import { DndContext, PointerSensor, TouchSensor, KeyboardSensor, closestCenter, 
 import { SortableContext, useSortable, sortableKeyboardCoordinates, horizontalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import plannerIllustration from "@/assets/planner-illustration.png";
+import { TaskTimer, useTaskTimer } from "@/components/schedule/TaskTimer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -91,6 +92,8 @@ export function WeeklySchedule() {
   const [day, setDay] = useState<Day>("Sun");
   const [editing, setEditing] = useState<{ task: Task; isNew: boolean } | null>(null);
   const [confirm, setConfirm] = useState<"week" | "defaults" | null>(null);
+  const [timerReset, setTimerReset] = useState(0);
+  const timer = useTaskTimer(state?.tasks, state?.done, day, `${state?.weekKey ?? ""}-${timerReset}`);
 
   useEffect(() => { if (now) setDay(todayDay(now)); }, [now === null]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -106,7 +109,10 @@ export function WeeklySchedule() {
   const weekTotals = DAYS.reduce((a, d) => { const p = progress(d); return { n: a.n + p.n, t: a.t + p.total }; }, { n: 0, t: 0 });
   const weekPct = weekTotals.t ? Math.round((weekTotals.n / weekTotals.t) * 100) : 0;
 
-  const toggle = (id: string) => setState((s) => s && { ...s, done: { ...s.done, [id]: !s.done[id] } });
+  const toggle = (id: string) => {
+    timer.complete(id);
+    setState((s) => s && { ...s, done: { ...s.done, [id]: !s.done[id] } });
+  };
   const saveTask = (t: Task) => setState((s) => {
     if (!s) return s;
     const list = s.tasks[day].filter((x) => x.id !== t.id);
@@ -177,6 +183,8 @@ export function WeeklySchedule() {
             );
           })}
         </nav>
+
+        <TaskTimer controller={timer} tasks={state.tasks[day]} done={state.done} day={day} onComplete={toggle} />
 
         {/* Day timeline */}
         <section className="mt-8 rounded-3xl border border-border bg-card/60 p-4 shadow-card backdrop-blur sm:p-6">
@@ -273,6 +281,7 @@ export function WeeklySchedule() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={() => {
+              setTimerReset((p) => p + 1);
               setState((s) => s && (confirm === "week" ? { ...s, done: {} } : { tasks: defaultSchedule(), done: {}, weekKey: s.weekKey }));
               setConfirm(null);
             }}>Confirm</AlertDialogAction>
