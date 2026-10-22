@@ -132,7 +132,7 @@ export function WeeklySchedule() {
               The Week, <span className="text-primary">minute by minute</span>
             </h1>
           </div>
-          <div className="flex items-center gap-5">
+          <div className="flex max-w-full flex-wrap items-center gap-4">
             <div className="w-56">
               <div className="flex justify-between font-mono text-xs text-muted-foreground">
                 <span>Week progress</span><span className="text-foreground">{weekPct}%</span>
@@ -426,14 +426,14 @@ function SortableTask({ t, done, nowMin, onToggle, onEdit }: {
                 {compact ? (
                   <>
                     {/* slim view: icon, check, duration stacked — no rotated text */}
-                    <div className="flex h-full flex-col items-center justify-between py-2.5 transition-opacity duration-200 group-hover:opacity-0 group-focus-visible:opacity-0">
+                    <div className="flex h-full flex-col items-center justify-between py-2.5 transition-opacity duration-200 group-hover:opacity-0 group-focus-within:opacity-0">
                       <CategoryIcon category={t.cat} className="size-4" />
                       <span className="h-8" />
                       {!tiny && <span className="font-mono text-[9px] text-muted-foreground">{fmtDur(e - s)}</span>}
                       {check}
                     </div>
                     {/* expands on hover to show full details */}
-                    <div className="absolute inset-0 w-[190px] p-2.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100">
+                    <div className="absolute inset-0 w-[190px] p-2.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-within:opacity-100">
                       {full}
                     </div>
                   </>

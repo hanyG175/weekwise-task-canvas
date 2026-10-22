@@ -1,5 +1,5 @@
 # Schedule updates
-- [ ] Add accessible drag-and-drop task reordering with updated times.
-- [ ] Start weeks and automatic resets on Sunday.
-- [ ] Add category icons and playful planner imagery.
-- [ ] Keep today’s highlight distinct from the selected day; verify narrow screens.
+- [x] Add accessible drag-and-drop task reordering with updated times.
+- [x] Start weeks and automatic resets on Sunday.
+- [x] Add category icons and playful planner imagery.
+- [x] Keep today’s highlight distinct from the selected day; verify narrow screens.
