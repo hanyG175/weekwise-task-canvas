@@ -54,7 +54,7 @@ const END = 22 * 60 + 30;
 const PX = 4; // px per minute in day view
 const STORAGE = "weekly-schedule-v1";
 
-interface State { tasks: Record<Day, Task[]>; done: Record<string, boolean>; weekKey: string }
+interface State { tasks: Record<Day, Task[]>; done: Record<string, boolean>; weekKey: string; updatedAt: number }
 
 function useSchedule() {
   const [state, setState] = useState<State | null>(null);
@@ -62,9 +62,9 @@ function useSchedule() {
     let s: State;
     try {
       const raw = localStorage.getItem(STORAGE);
-      s = raw ? JSON.parse(raw) : { tasks: defaultSchedule(), done: {}, weekKey: weekKey(new Date()) };
+      s = raw ? { updatedAt: 0, ...JSON.parse(raw) } : { tasks: defaultSchedule(), done: {}, weekKey: weekKey(new Date()), updatedAt: 0 };
     } catch {
-      s = { tasks: defaultSchedule(), done: {}, weekKey: weekKey(new Date()) };
+      s = { tasks: defaultSchedule(), done: {}, weekKey: weekKey(new Date()), updatedAt: 0 };
     }
     setState(applyWeeklyReset(s, new Date()));
     const iv = setInterval(() => setState((p) => (p ? applyWeeklyReset(p, new Date()) : p)), 60000);
@@ -72,6 +72,63 @@ function useSchedule() {
   }, []);
   useEffect(() => { if (state) localStorage.setItem(STORAGE, JSON.stringify(state)); }, [state]);
   return [state, setState] as const;
+}
+
+type SyncStatus = "loading" | "synced" | "syncing" | "error";
+
+/** Keeps the schedule in sync with the Google Sheet: pulls once on load, pushes on every change (debounced). */
+function useSheetSync(state: State | null, setState: React.Dispatch<React.SetStateAction<State | null>>) {
+  const [status, setStatus] = useState<SyncStatus>("loading");
+  const ready = useRef(false); // true once the initial pull/push settled
+  const skipNextPush = useRef(false); // adopting remote state shouldn't echo back
+  const pushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const push = useCallback(async (s: State) => {
+    setStatus("syncing");
+    try {
+      await pushSchedule({ data: { tasks: s.tasks, done: s.done, weekKey: s.weekKey, updatedAt: s.updatedAt } });
+      setStatus("synced");
+    } catch (e) {
+      console.error(e);
+      setStatus("error");
+    }
+  }, []);
+
+  // Initial load: pull the sheet; adopt it when newer, otherwise push local state up.
+  useEffect(() => {
+    if (!state || ready.current) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const remote = await pullSchedule();
+        if (cancelled) return;
+        if (remote && remote.updatedAt > state.updatedAt) {
+          skipNextPush.current = true;
+          setState(applyWeeklyReset({ ...remote, tasks: { ...defaultSchedule(), ...remote.tasks } }, new Date()));
+        } else {
+          await push({ ...state, updatedAt: Date.now() });
+        }
+      } catch (e) {
+        console.error(e);
+        if (!cancelled) setStatus("error");
+      } finally {
+        if (!cancelled) ready.current = true;
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [state, setState, push]);
+
+  // Push on every local change, debounced.
+  useEffect(() => {
+    if (!state || !ready.current) return;
+    if (skipNextPush.current) { skipNextPush.current = false; return; }
+    if (pushTimer.current) clearTimeout(pushTimer.current);
+    pushTimer.current = setTimeout(() => void push(state), 1500);
+    return () => { if (pushTimer.current) clearTimeout(pushTimer.current); };
+  }, [state, push]);
+
+  const syncNow = useCallback(() => { if (state && ready.current) void push(state); }, [state, push]);
+  return { status, syncNow };
 }
 
 function useNow() {
