@@ -152,10 +152,17 @@ export function WeeklySchedule() {
   const [confirm, setConfirm] = useState<"week" | "defaults" | null>(null);
   const [timerReset, setTimerReset] = useState(0);
   const timer = useTaskTimer(state?.tasks, state?.done, day, `${state?.weekKey ?? ""}-${timerReset}`);
+  const sync = useSheetSync(state, setState);
 
   useEffect(() => { if (now) setDay(todayDay(now)); }, [now === null]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!state) return <div className="min-h-screen bg-background" />;
+
+  /** Applies a change and stamps it so the sheet sync knows it's newer. */
+  const mutate = (fn: (s: State) => State) => setState((s) => {
+    const next = s ? fn(s) : s;
+    return next ? { ...next, updatedAt: Date.now() } : next;
+  });
 
   const today = now ? todayDay(now) : null;
   const nowMin = now ? now.getHours() * 60 + now.getMinutes() : -1;
