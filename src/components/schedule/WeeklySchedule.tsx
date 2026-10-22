@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, Pencil, Plus, RotateCcw, Trash2, Undo2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Check, Pencil, Plus, RotateCcw, Trash2, Undo2, ChevronLeft, ChevronRight, GripVertical, Moon, BookOpen, Hammer, Send, Map, Code2, BriefcaseBusiness, Clapperboard, ClipboardCheck, Dumbbell, Utensils, Coffee, Sparkles, Sunrise, Heart, type LucideIcon } from "lucide-react";
+import { DndContext, PointerSensor, TouchSensor, KeyboardSensor, closestCenter, useSensor, useSensors } from "@dnd-kit/core";
+import { SortableContext, useSortable, sortableKeyboardCoordinates, horizontalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import plannerIllustration from "@/assets/planner-illustration.png";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,7 +20,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import {
-  CATEGORIES, DAYS, DAY_NAMES, applyWeeklyReset, defaultSchedule, toMin, todayDay, weekKey,
+  CATEGORIES, DAYS, DAY_NAMES, applyWeeklyReset, defaultSchedule, toMin, todayDay, weekKey, reorderTasks,
   type Category, type Day, type Task,
 } from "@/lib/schedule-data";
 
@@ -32,6 +36,16 @@ const TEXT: Record<Category, string> = {
   meal: "text-cat-meal", rest: "text-cat-rest", free: "text-cat-free", routine: "text-cat-routine",
   social: "text-cat-social",
 };
+
+const CATEGORY_ICONS: Record<Category, LucideIcon> = {
+  prayer: Moon, quran: BookOpen, P: Hammer, O: Send, R: Map, L: Code2,
+  A: BriefcaseBusiness, C: Clapperboard, W: ClipboardCheck, workout: Dumbbell,
+  meal: Utensils, rest: Coffee, free: Sparkles, routine: Sunrise, social: Heart,
+};
+function CategoryIcon({ category, className }: { category: Category; className?: string }) {
+  const Icon = CATEGORY_ICONS[category];
+  return <Icon aria-hidden="true" className={cn("size-4 shrink-0", TEXT[category], className)} />;
+}
 
 const START = 6 * 60;
 const END = 22 * 60 + 30;
@@ -74,7 +88,7 @@ const fmtDur = (m: number) => (m >= 60 ? `${Math.floor(m / 60)}h${m % 60 ? Strin
 export function WeeklySchedule() {
   const [state, setState] = useSchedule();
   const now = useNow();
-  const [day, setDay] = useState<Day>("Mon");
+  const [day, setDay] = useState<Day>("Sun");
   const [editing, setEditing] = useState<{ task: Task; isNew: boolean } | null>(null);
   const [confirm, setConfirm] = useState<"week" | "defaults" | null>(null);
 
@@ -108,12 +122,13 @@ export function WeeklySchedule() {
     <div className="min-h-screen bg-background bg-glow">
       <div className="mx-auto max-w-[1400px] px-4 py-8 sm:px-8">
         {/* Header */}
-        <header className="flex flex-wrap items-end justify-between gap-6">
-          <div>
+        <header className="relative flex flex-wrap items-end justify-between gap-6">
+          <div className="relative min-w-0 flex-1 pr-20 sm:pr-28">
+            <img src={plannerIllustration} alt="" width={768} height={768} className="pointer-events-none absolute right-0 top-0 size-20 object-contain sm:size-28" />
             <p className="font-mono text-xs uppercase tracking-[0.25em] text-muted-foreground">
               {state.weekKey.replace("-W", " · Week ")}
             </p>
-            <h1 className="mt-2 font-display text-4xl font-semibold tracking-tight sm:text-5xl">
+            <h1 className="mt-2 font-display text-4xl font-semibold sm:text-5xl">
               The Week, <span className="text-primary">minute by minute</span>
             </h1>
           </div>
@@ -133,28 +148,32 @@ export function WeeklySchedule() {
         </header>
 
         {/* Day selector */}
-        <nav className="mt-10 grid grid-cols-7 gap-2 sm:gap-3">
+        <nav aria-label="Days of the week" className="mt-10 grid grid-cols-7 gap-1.5 sm:gap-3">
           {DAYS.map((d) => {
             const p = progress(d);
             const active = d === day;
             return (
-              <button
+              <Button
                 key={d}
+                variant="ghost"
+                aria-label={DAY_NAMES[d]}
+                aria-pressed={active}
+                aria-current={d === today ? "date" : undefined}
                 onClick={() => setDay(d)}
                 className={cn(
-                  "group relative overflow-hidden rounded-2xl border p-3 text-left transition-all duration-300 sm:p-4",
-                  active ? "border-primary/60 bg-card shadow-card -translate-y-1" : "border-border bg-card/40 hover:bg-card/80 hover:-translate-y-0.5",
+                  "group relative h-auto min-w-0 flex-col items-stretch gap-0 rounded-lg border px-1.5 py-3 text-left transition-all duration-300 sm:p-4",
+                  d === today ? "border-primary bg-primary/15 hover:bg-primary/15" : active ? "border-day-selected bg-day-selected/15 hover:bg-day-selected/15" : "border-border bg-card/40 hover:bg-card/80",
+                  active && "-translate-y-1 shadow-card",
                 )}
               >
                 <div className="flex items-center justify-between">
-                  <span className={cn("font-display text-sm font-semibold sm:text-lg", active && "text-primary")}>{d}</span>
-                  {d === today && <span className="hidden rounded-full bg-primary/15 px-2 py-0.5 font-mono text-[10px] uppercase text-primary sm:inline">Today</span>}
+                  <span className={cn("font-display text-sm font-semibold sm:text-lg", d === today ? "text-primary" : active ? "text-day-selected" : "text-foreground")}>{d}</span>
                 </div>
                 <div className="mt-1 hidden font-mono text-xs text-muted-foreground sm:block">{p.n}/{p.total} done</div>
                 <div className="mt-3 h-1 overflow-hidden rounded-full bg-muted">
-                  <div className="h-full bg-primary transition-all duration-700" style={{ width: `${p.pct}%` }} />
+                  <div className={cn("h-full transition-all duration-700", d === today ? "bg-primary" : active ? "bg-day-selected" : "bg-muted-foreground")} style={{ width: `${p.pct}%` }} />
                 </div>
-              </button>
+              </Button>
             );
           })}
         </nav>
@@ -163,9 +182,9 @@ export function WeeklySchedule() {
         <section className="mt-8 rounded-3xl border border-border bg-card/60 p-4 shadow-card backdrop-blur sm:p-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <Button size="icon" variant="ghost" aria-label="Previous day" onClick={() => setDay(DAYS[(dayIdx + 6) % 7]!)}><ChevronLeft /></Button>
+              <Button size="icon" variant="ghost" aria-label="Previous day" onClick={() => setDay(DAYS[(dayIdx + 6) % 7] ?? "Sun")}><ChevronLeft /></Button>
               <h2 className="font-display text-2xl font-semibold">{DAY_NAMES[day]}</h2>
-              <Button size="icon" variant="ghost" aria-label="Next day" onClick={() => setDay(DAYS[(dayIdx + 1) % 7]!)}><ChevronRight /></Button>
+              <Button size="icon" variant="ghost" aria-label="Next day" onClick={() => setDay(DAYS[(dayIdx + 1) % 7] ?? "Sun")}><ChevronRight /></Button>
               <span className="ml-2 font-mono text-sm text-muted-foreground">{progress(day).pct}% complete</span>
             </div>
             <Button
@@ -181,8 +200,8 @@ export function WeeklySchedule() {
             nowMin={day === today ? nowMin : -1}
             onToggle={toggle}
             onEdit={(t) => setEditing({ task: t, isNew: false })}
+            onReorder={(activeId, overId) => setState((s) => s && { ...s, tasks: { ...s.tasks, [day]: reorderTasks(s.tasks[day], activeId, overId) } })}
           />
-          <p className="mt-3 font-mono text-xs text-muted-foreground">Click a block to check it off · scroll sideways to move through the day · pencil to edit</p>
         </section>
 
         {/* Week overview */}
@@ -217,7 +236,7 @@ export function WeeklySchedule() {
           <div className="mt-6 flex flex-wrap gap-x-5 gap-y-2">
             {(Object.keys(CATEGORIES) as Category[]).map((c) => (
               <span key={c} className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span className={cn("size-2.5 rounded-full", BG[c])} />{CATEGORIES[c].label}
+                <CategoryIcon category={c} />{CATEGORIES[c].label}
               </span>
             ))}
           </div>
@@ -227,7 +246,7 @@ export function WeeklySchedule() {
 
 
         <footer className="mt-8 flex flex-wrap items-center justify-between gap-3 pb-6 font-mono text-xs text-muted-foreground">
-          <span>Check-offs reset automatically every Monday. Your edits are saved on this device.</span>
+          <span>Check-offs reset automatically every Sunday. Your edits are saved on this device.</span>
           <button className="underline-offset-4 hover:text-foreground hover:underline" onClick={() => setConfirm("defaults")}>
             Restore original schedule
           </button>
@@ -264,12 +283,18 @@ export function WeeklySchedule() {
   );
 }
 
-function DayTimeline({ tasks, done, nowMin, onToggle, onEdit }: {
+function DayTimeline({ tasks, done, nowMin, onToggle, onEdit, onReorder }: {
   tasks: Task[]; done: Record<string, boolean>; nowMin: number;
   onToggle: (id: string) => void; onEdit: (t: Task) => void;
+  onReorder: (activeId: string, overId: string) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const width = (END - START) * PX;
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+  const width = (Math.max(END, ...tasks.map((t) => toMin(t.end))) - START) * PX;
   const hours = useMemo(() => Array.from({ length: 17 }, (_, i) => 6 + i), []);
 
   useEffect(() => {
@@ -285,6 +310,8 @@ function DayTimeline({ tasks, done, nowMin, onToggle, onEdit }: {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
+    <DndContext sensors={sensors} collisionDetection={closestCenter}
+      onDragEnd={({ active, over }) => { if (over) onReorder(String(active.id), String(over.id)); }}>
     <div ref={ref} className="scrollbar-thin mt-5 overflow-x-auto pb-3 animate-in fade-in slide-in-from-right-4 duration-500">
       <div className="relative" style={{ width }}>
         {/* ruler */}
@@ -299,7 +326,27 @@ function DayTimeline({ tasks, done, nowMin, onToggle, onEdit }: {
           {hours.map((h) => (
             <div key={h} className="absolute inset-y-0 w-px bg-border" style={{ left: (h * 60 - START) * PX }} />
           ))}
-          {tasks.map((t) => {
+          <SortableContext items={tasks.map((t) => t.id)} strategy={horizontalListSortingStrategy}>
+            {tasks.map((t) => <SortableTask key={t.id} t={t} done={done} nowMin={nowMin} onToggle={onToggle} onEdit={onEdit} />)}
+          </SortableContext>
+          {nowMin >= START && nowMin <= END && (
+            <div className="pointer-events-none absolute -top-6 bottom-0 z-10" style={{ left: (nowMin - START) * PX }}>
+              <div className="h-full w-0.5 bg-primary" />
+              <div className="absolute -top-1 -left-1 size-2.5 animate-pulse rounded-full bg-primary" />
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+    </DndContext>
+  );
+}
+
+function SortableTask({ t, done, nowMin, onToggle, onEdit }: {
+  t: Task; done: Record<string, boolean>; nowMin: number;
+  onToggle: (id: string) => void; onEdit: (t: Task) => void;
+}) {
+  const { setNodeRef, setActivatorNodeRef, attributes, listeners, transform, isDragging, isOver } = useSortable({ id: t.id });
             const s = toMin(t.start), e = toMin(t.end);
             const w = (e - s) * PX;
             const isDone = !!done[t.id];
@@ -315,24 +362,34 @@ function DayTimeline({ tasks, done, nowMin, onToggle, onEdit }: {
                 {isDone && <Check className={tiny ? "size-2.5" : "size-3"} />}
               </span>
             );
+            const handle = (
+              <Button variant="ghost" size="icon" ref={setActivatorNodeRef}
+                {...attributes} {...listeners}
+                aria-label={`Reorder ${t.title}`} title="Drag to reorder · Space to pick up, arrows to move, Space to drop"
+                onClick={(ev) => ev.stopPropagation()}
+                className="size-6 shrink-0 cursor-grab touch-none p-1 text-muted-foreground active:cursor-grabbing">
+                <GripVertical className="size-4" />
+              </Button>
+            );
             const full = (
               <div className="flex h-full min-w-0 flex-col justify-between">
                 <div className="min-w-0">
-                  <div className={cn("truncate font-mono text-[10px] font-medium uppercase tracking-wider", TEXT[t.cat])}>
-                    {CATEGORIES[t.cat].label}
+                  <div className={cn("flex min-w-0 items-center gap-1.5 font-mono text-[10px] font-medium uppercase", TEXT[t.cat])}>
+                    <CategoryIcon category={t.cat} className="size-4" /><span className="truncate">{CATEGORIES[t.cat].label}</span>
                   </div>
                   <div className={cn("mt-1 line-clamp-3 text-sm font-semibold leading-snug", isDone && "line-through")}>{t.title}</div>
                 </div>
                 <div className="flex items-end justify-between gap-1">
                   <span className="truncate font-mono text-[10px] text-muted-foreground">{t.start} · {fmtDur(e - s)}</span>
                   <div className="flex items-center gap-1">
-                    <button
+                    {!compact && handle}
+                    <Button variant="ghost"
                       aria-label={`Edit ${t.title}`}
                       onClick={(ev) => { ev.stopPropagation(); onEdit(t); }}
-                      className="rounded-md p-1 text-muted-foreground opacity-0 transition hover:bg-accent hover:text-foreground group-hover:opacity-100 group-focus-visible:opacity-100"
+                      className="size-6 p-1 text-muted-foreground transition hover:bg-accent hover:text-foreground"
                     >
                       <Pencil className="size-3" />
-                    </button>
+                    </Button>
                     {check}
                   </div>
                 </div>
@@ -340,29 +397,34 @@ function DayTimeline({ tasks, done, nowMin, onToggle, onEdit }: {
             );
             return (
               <div
-                key={t.id}
+                ref={setNodeRef}
                 role="button"
+                aria-label={`${t.title}, ${t.start} to ${t.end}`}
+                aria-pressed={isDone}
                 tabIndex={0}
                 title={`${t.start}–${t.end} · ${t.title}${t.note ? `\n${t.note}` : ""}`}
                 onClick={() => onToggle(t.id)}
                 onKeyDown={(ev) => (ev.key === "Enter" || ev.key === " ") && (ev.preventDefault(), onToggle(t.id))}
                 className={cn(
-                  "group absolute top-3 bottom-3 cursor-pointer overflow-hidden rounded-xl border border-border transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  "group absolute top-3 bottom-3 cursor-pointer overflow-hidden rounded-lg border border-border transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                   compact
                     ? "bg-secondary/50 hover:z-20 hover:!w-[190px] hover:bg-popover hover:shadow-card focus-visible:z-20 focus-visible:!w-[190px] focus-visible:bg-popover"
                     : "bg-secondary/70 p-2.5 hover:-translate-y-1 hover:bg-secondary",
                   isNow && "ring-2 ring-primary",
+                  isDragging && "z-30 opacity-80 ring-2 ring-day-selected !transition-none",
+                  isOver && !isDragging && "ring-2 ring-day-selected",
                   isDone && "opacity-45 hover:opacity-100",
                 )}
-                style={{ left: (s - START) * PX + 1, width: w - 3 }}
+                style={{ left: (s - START) * PX + 1, width: Math.max(26, w - 3), transform: isDragging ? CSS.Transform.toString(transform) : undefined }}
               >
                 <div className={cn("absolute inset-x-0 top-0 h-1", BG[t.cat])} />
+                {compact && <div className="absolute inset-x-0 top-11 z-30 flex justify-center">{handle}</div>}
                 {compact ? (
                   <>
                     {/* slim view: icon, check, duration stacked — no rotated text */}
                     <div className="flex h-full flex-col items-center justify-between py-2.5 transition-opacity duration-200 group-hover:opacity-0 group-focus-visible:opacity-0">
-                      <span className={cn("font-mono text-xs font-semibold", TEXT[t.cat])}>{CATEGORIES[t.cat].short}</span>
-                      <span className={cn("h-10 w-1 rounded-full opacity-60", BG[t.cat])} />
+                      <CategoryIcon category={t.cat} className="size-4" />
+                      <span className="h-8" />
                       {!tiny && <span className="font-mono text-[9px] text-muted-foreground">{fmtDur(e - s)}</span>}
                       {check}
                     </div>
@@ -374,17 +436,6 @@ function DayTimeline({ tasks, done, nowMin, onToggle, onEdit }: {
                 ) : full}
               </div>
             );
-          })}
-          {nowMin >= START && nowMin <= END && (
-            <div className="pointer-events-none absolute -top-6 bottom-0 z-10" style={{ left: (nowMin - START) * PX }}>
-              <div className="h-full w-0.5 bg-primary" />
-              <div className="absolute -top-1 -left-1 size-2.5 animate-pulse rounded-full bg-primary" />
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
 }
 
 function TaskDialog({ editing, onClose, onSave, onDelete }: {
@@ -422,7 +473,7 @@ function TaskDialog({ editing, onClose, onSave, onDelete }: {
                 <SelectContent>
                   {(Object.keys(CATEGORIES) as Category[]).map((c) => (
                     <SelectItem key={c} value={c}>
-                      <span className="flex items-center gap-2"><span className={cn("size-2.5 rounded-full", BG[c])} />{CATEGORIES[c].label}</span>
+                      <span className="flex items-center gap-2"><CategoryIcon category={c} />{CATEGORIES[c].label}</span>
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -480,7 +531,7 @@ function CategoryProgress({ tasks, done, day }: {
             <div key={r.c} className="rounded-2xl border border-border bg-card/60 p-4 transition hover:bg-card">
               <div className="flex items-center justify-between">
                 <span className="flex items-center gap-2 text-sm font-semibold">
-                  <span className={cn("size-2.5 rounded-full", BG[r.c])} />{CATEGORIES[r.c].label}
+                  <CategoryIcon category={r.c} className="size-5" />{CATEGORIES[r.c].label}
                 </span>
                 <span className={cn("font-mono text-sm", TEXT[r.c])}>{pct}%</span>
               </div>
