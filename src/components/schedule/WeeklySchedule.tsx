@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, Pencil, Plus, RotateCcw, Trash2, Undo2, ChevronLeft, ChevronRight, GripVertical, Moon, BookOpen, Hammer, Send, Map, Code2, BriefcaseBusiness, Clapperboard, ClipboardCheck, Dumbbell, Utensils, Coffee, Sparkles, Sunrise, Heart, type LucideIcon } from "lucide-react";
-import { DndContext, PointerSensor, TouchSensor, KeyboardSensor, closestCenter, useSensor, useSensors } from "@dnd-kit/core";
+import { DndContext, PointerSensor, TouchSensor, KeyboardSensor, closestCenter, pointerWithin, useDndContext, useSensor, useSensors } from "@dnd-kit/core";
 import { SortableContext, useSortable, sortableKeyboardCoordinates, horizontalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import plannerIllustration from "@/assets/planner-illustration.png";
@@ -310,7 +310,10 @@ function DayTimeline({ tasks, done, nowMin, onToggle, onEdit, onReorder }: {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCenter}
+    <DndContext sensors={sensors} collisionDetection={(args) => {
+      const underPointer = pointerWithin(args);
+      return args.pointerCoordinates ? underPointer : closestCenter(args);
+    }}
       onDragEnd={({ active, over }) => { if (over) onReorder(String(active.id), String(over.id)); }}>
     <div ref={ref} className="scrollbar-thin mt-5 overflow-x-auto pb-3 animate-in fade-in slide-in-from-right-4 duration-500">
       <div className="relative" style={{ width }}>
@@ -347,6 +350,7 @@ function SortableTask({ t, done, nowMin, onToggle, onEdit }: {
   onToggle: (id: string) => void; onEdit: (t: Task) => void;
 }) {
   const { setNodeRef, setActivatorNodeRef, attributes, listeners, transform, isDragging, isOver } = useSortable({ id: t.id });
+  const { active } = useDndContext();
             const s = toMin(t.start), e = toMin(t.end);
             const w = (e - s) * PX;
             const isDone = !!done[t.id];
@@ -404,11 +408,11 @@ function SortableTask({ t, done, nowMin, onToggle, onEdit }: {
                 tabIndex={0}
                 title={`${t.start}–${t.end} · ${t.title}${t.note ? `\n${t.note}` : ""}`}
                 onClick={() => onToggle(t.id)}
-                onKeyDown={(ev) => (ev.key === "Enter" || ev.key === " ") && (ev.preventDefault(), onToggle(t.id))}
+                onKeyDown={(ev) => ev.target === ev.currentTarget && (ev.key === "Enter" || ev.key === " ") && (ev.preventDefault(), onToggle(t.id))}
                 className={cn(
                   "group absolute top-3 bottom-3 cursor-pointer overflow-hidden rounded-lg border border-border transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                   compact
-                    ? "bg-secondary/50 hover:z-20 hover:!w-[190px] hover:bg-popover hover:shadow-card focus-visible:z-20 focus-visible:!w-[190px] focus-visible:bg-popover"
+                    ? cn("bg-secondary/50", !active && "hover:z-20 hover:!w-[190px] hover:bg-popover hover:shadow-card focus-within:z-20 focus-within:!w-[190px] focus-within:bg-popover")
                     : "bg-secondary/70 p-2.5 hover:-translate-y-1 hover:bg-secondary",
                   isNow && "ring-2 ring-primary",
                   isDragging && "z-30 opacity-80 ring-2 ring-day-selected !transition-none",
