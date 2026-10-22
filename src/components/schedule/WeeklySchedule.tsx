@@ -176,16 +176,15 @@ export function WeeklySchedule() {
 
   const toggle = (id: string) => {
     timer.complete(id);
-    setState((s) => s && { ...s, done: { ...s.done, [id]: !s.done[id] } });
+    mutate((s) => ({ ...s, done: { ...s.done, [id]: !s.done[id] } }));
   };
-  const saveTask = (t: Task) => setState((s) => {
-    if (!s) return s;
+  const saveTask = (t: Task) => mutate((s) => {
     const list = s.tasks[day].filter((x) => x.id !== t.id);
     return { ...s, tasks: { ...s.tasks, [day]: sortTasks([...list, t]) } };
   });
-  const deleteTask = (id: string) => setState((s) => s && {
+  const deleteTask = (id: string) => mutate((s) => ({
     ...s, tasks: { ...s.tasks, [day]: s.tasks[day].filter((x) => x.id !== id) },
-  });
+  }));
 
   const dayIdx = DAYS.indexOf(day);
 
