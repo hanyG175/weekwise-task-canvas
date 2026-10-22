@@ -211,6 +211,25 @@ export function WeeklySchedule() {
                 <div className="h-full rounded-full bg-primary transition-all duration-700 ease-out" style={{ width: `${weekPct}%` }} />
               </div>
             </div>
+            <button
+              onClick={sync.syncNow}
+              title={sync.status === "error" ? "Couldn't reach Google Sheets — click to retry" : "Your schedule syncs to your Google Sheet automatically"}
+              className={cn(
+                "flex items-center gap-1.5 rounded-full border px-3 py-1.5 font-mono text-xs transition-colors",
+                sync.status === "error"
+                  ? "border-destructive/50 text-destructive hover:bg-destructive/10"
+                  : "border-border text-muted-foreground hover:bg-accent hover:text-foreground",
+              )}
+            >
+              {sync.status === "syncing" || sync.status === "loading" ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : sync.status === "error" ? (
+                <CloudOff className="size-3.5" />
+              ) : (
+                <Cloud className="size-3.5 text-primary" />
+              )}
+              {sync.status === "loading" ? "Connecting…" : sync.status === "syncing" ? "Syncing…" : sync.status === "error" ? "Offline — retry" : "Synced to Sheets"}
+            </button>
             <Button variant="outline" onClick={() => setConfirm("week")}>
               <RotateCcw /> Reset week
             </Button>
@@ -318,7 +337,7 @@ export function WeeklySchedule() {
 
 
         <footer className="mt-8 flex flex-wrap items-center justify-between gap-3 pb-6 font-mono text-xs text-muted-foreground">
-          <span>Check-offs reset automatically every Sunday. Your edits are saved on this device.</span>
+          <span>Check-offs reset automatically every Sunday. Your edits are saved on this device and synced to your Google Sheet.</span>
           <button className="underline-offset-4 hover:text-foreground hover:underline" onClick={() => setConfirm("defaults")}>
             Restore original schedule
           </button>
