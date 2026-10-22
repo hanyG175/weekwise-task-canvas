@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, Pencil, Plus, RotateCcw, Trash2, Undo2, ChevronLeft, ChevronRight, GripVertical, Moon, BookOpen, Hammer, Send, Map, Code2, BriefcaseBusiness, Clapperboard, ClipboardCheck, Dumbbell, Utensils, Coffee, Sparkles, Sunrise, Heart, type LucideIcon } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Check, Cloud, CloudOff, Loader2, Pencil, Plus, RotateCcw, Trash2, Undo2, ChevronLeft, ChevronRight, GripVertical, Moon, BookOpen, Hammer, Send, Map, Code2, BriefcaseBusiness, Clapperboard, ClipboardCheck, Dumbbell, Utensils, Coffee, Sparkles, Sunrise, Heart, type LucideIcon } from "lucide-react";
+import { pullSchedule, pushSchedule } from "@/lib/sheets-sync.functions";
 import { DndContext, PointerSensor, TouchSensor, KeyboardSensor, closestCenter, pointerWithin, useDndContext, useSensor, useSensors } from "@dnd-kit/core";
 import { SortableContext, useSortable, sortableKeyboardCoordinates, horizontalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -53,7 +54,7 @@ const END = 22 * 60 + 30;
 const PX = 4; // px per minute in day view
 const STORAGE = "weekly-schedule-v1";
 
-interface State { tasks: Record<Day, Task[]>; done: Record<string, boolean>; weekKey: string }
+interface State { tasks: Record<Day, Task[]>; done: Record<string, boolean>; weekKey: string; updatedAt: number }
 
 function useSchedule() {
   const [state, setState] = useState<State | null>(null);
@@ -61,9 +62,9 @@ function useSchedule() {
     let s: State;
     try {
       const raw = localStorage.getItem(STORAGE);
-      s = raw ? JSON.parse(raw) : { tasks: defaultSchedule(), done: {}, weekKey: weekKey(new Date()) };
+      s = raw ? { updatedAt: 0, ...JSON.parse(raw) } : { tasks: defaultSchedule(), done: {}, weekKey: weekKey(new Date()), updatedAt: 0 };
     } catch {
-      s = { tasks: defaultSchedule(), done: {}, weekKey: weekKey(new Date()) };
+      s = { tasks: defaultSchedule(), done: {}, weekKey: weekKey(new Date()), updatedAt: 0 };
     }
     setState(applyWeeklyReset(s, new Date()));
     const iv = setInterval(() => setState((p) => (p ? applyWeeklyReset(p, new Date()) : p)), 60000);
@@ -71,6 +72,63 @@ function useSchedule() {
   }, []);
   useEffect(() => { if (state) localStorage.setItem(STORAGE, JSON.stringify(state)); }, [state]);
   return [state, setState] as const;
+}
+
+type SyncStatus = "loading" | "synced" | "syncing" | "error";
+
+/** Keeps the schedule in sync with the Google Sheet: pulls once on load, pushes on every change (debounced). */
+function useSheetSync(state: State | null, setState: React.Dispatch<React.SetStateAction<State | null>>) {
+  const [status, setStatus] = useState<SyncStatus>("loading");
+  const ready = useRef(false); // true once the initial pull/push settled
+  const skipNextPush = useRef(false); // adopting remote state shouldn't echo back
+  const pushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const push = useCallback(async (s: State) => {
+    setStatus("syncing");
+    try {
+      await pushSchedule({ data: { tasks: s.tasks, done: s.done, weekKey: s.weekKey, updatedAt: s.updatedAt } });
+      setStatus("synced");
+    } catch (e) {
+      console.error(e);
+      setStatus("error");
+    }
+  }, []);
+
+  // Initial load: pull the sheet; adopt it when newer, otherwise push local state up.
+  useEffect(() => {
+    if (!state || ready.current) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const remote = await pullSchedule();
+        if (cancelled) return;
+        if (remote && remote.updatedAt > state.updatedAt) {
+          skipNextPush.current = true;
+          setState(applyWeeklyReset({ ...remote, tasks: { ...defaultSchedule(), ...remote.tasks } }, new Date()));
+        } else {
+          await push({ ...state, updatedAt: Date.now() });
+        }
+      } catch (e) {
+        console.error(e);
+        if (!cancelled) setStatus("error");
+      } finally {
+        if (!cancelled) ready.current = true;
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [state, setState, push]);
+
+  // Push on every local change, debounced.
+  useEffect(() => {
+    if (!state || !ready.current) return;
+    if (skipNextPush.current) { skipNextPush.current = false; return; }
+    if (pushTimer.current) clearTimeout(pushTimer.current);
+    pushTimer.current = setTimeout(() => void push(state), 1500);
+    return () => { if (pushTimer.current) clearTimeout(pushTimer.current); };
+  }, [state, push]);
+
+  const syncNow = useCallback(() => { if (state && ready.current) void push(state); }, [state, push]);
+  return { status, syncNow };
 }
 
 function useNow() {
@@ -94,10 +152,17 @@ export function WeeklySchedule() {
   const [confirm, setConfirm] = useState<"week" | "defaults" | null>(null);
   const [timerReset, setTimerReset] = useState(0);
   const timer = useTaskTimer(state?.tasks, state?.done, day, `${state?.weekKey ?? ""}-${timerReset}`);
+  const sync = useSheetSync(state, setState);
 
   useEffect(() => { if (now) setDay(todayDay(now)); }, [now === null]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!state) return <div className="min-h-screen bg-background" />;
+
+  /** Applies a change and stamps it so the sheet sync knows it's newer. */
+  const mutate = (fn: (s: State) => State) => setState((s) => {
+    const next = s ? fn(s) : s;
+    return next ? { ...next, updatedAt: Date.now() } : next;
+  });
 
   const today = now ? todayDay(now) : null;
   const nowMin = now ? now.getHours() * 60 + now.getMinutes() : -1;
@@ -111,16 +176,15 @@ export function WeeklySchedule() {
 
   const toggle = (id: string) => {
     timer.complete(id);
-    setState((s) => s && { ...s, done: { ...s.done, [id]: !s.done[id] } });
+    mutate((s) => ({ ...s, done: { ...s.done, [id]: !s.done[id] } }));
   };
-  const saveTask = (t: Task) => setState((s) => {
-    if (!s) return s;
+  const saveTask = (t: Task) => mutate((s) => {
     const list = s.tasks[day].filter((x) => x.id !== t.id);
     return { ...s, tasks: { ...s.tasks, [day]: sortTasks([...list, t]) } };
   });
-  const deleteTask = (id: string) => setState((s) => s && {
+  const deleteTask = (id: string) => mutate((s) => ({
     ...s, tasks: { ...s.tasks, [day]: s.tasks[day].filter((x) => x.id !== id) },
-  });
+  }));
 
   const dayIdx = DAYS.indexOf(day);
 
@@ -147,6 +211,25 @@ export function WeeklySchedule() {
                 <div className="h-full rounded-full bg-primary transition-all duration-700 ease-out" style={{ width: `${weekPct}%` }} />
               </div>
             </div>
+            <button
+              onClick={sync.syncNow}
+              title={sync.status === "error" ? "Couldn't reach Google Sheets — click to retry" : "Your schedule syncs to your Google Sheet automatically"}
+              className={cn(
+                "flex items-center gap-1.5 rounded-full border px-3 py-1.5 font-mono text-xs transition-colors",
+                sync.status === "error"
+                  ? "border-destructive/50 text-destructive hover:bg-destructive/10"
+                  : "border-border text-muted-foreground hover:bg-accent hover:text-foreground",
+              )}
+            >
+              {sync.status === "syncing" || sync.status === "loading" ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : sync.status === "error" ? (
+                <CloudOff className="size-3.5" />
+              ) : (
+                <Cloud className="size-3.5 text-primary" />
+              )}
+              {sync.status === "loading" ? "Connecting…" : sync.status === "syncing" ? "Syncing…" : sync.status === "error" ? "Offline — retry" : "Synced to Sheets"}
+            </button>
             <Button variant="outline" onClick={() => setConfirm("week")}>
               <RotateCcw /> Reset week
             </Button>
@@ -208,7 +291,7 @@ export function WeeklySchedule() {
             nowMin={day === today ? nowMin : -1}
             onToggle={toggle}
             onEdit={(t) => setEditing({ task: t, isNew: false })}
-            onReorder={(activeId, overId) => setState((s) => s && { ...s, tasks: { ...s.tasks, [day]: reorderTasks(s.tasks[day], activeId, overId) } })}
+            onReorder={(activeId, overId) => mutate((s) => ({ ...s, tasks: { ...s.tasks, [day]: reorderTasks(s.tasks[day], activeId, overId) } }))}
           />
         </section>
 
@@ -254,7 +337,7 @@ export function WeeklySchedule() {
 
 
         <footer className="mt-8 flex flex-wrap items-center justify-between gap-3 pb-6 font-mono text-xs text-muted-foreground">
-          <span>Check-offs reset automatically every Sunday. Your edits are saved on this device.</span>
+          <span>Check-offs reset automatically every Sunday. Your edits are saved on this device and synced to your Google Sheet.</span>
           <button className="underline-offset-4 hover:text-foreground hover:underline" onClick={() => setConfirm("defaults")}>
             Restore original schedule
           </button>
@@ -282,7 +365,7 @@ export function WeeklySchedule() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={() => {
               setTimerReset((p) => p + 1);
-              setState((s) => s && (confirm === "week" ? { ...s, done: {} } : { tasks: defaultSchedule(), done: {}, weekKey: s.weekKey }));
+              mutate((s) => (confirm === "week" ? { ...s, done: {} } : { tasks: defaultSchedule(), done: {}, weekKey: s.weekKey, updatedAt: s.updatedAt }));
               setConfirm(null);
             }}>Confirm</AlertDialogAction>
           </AlertDialogFooter>
