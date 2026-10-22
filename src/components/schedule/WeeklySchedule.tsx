@@ -272,7 +272,7 @@ export function WeeklySchedule() {
             nowMin={day === today ? nowMin : -1}
             onToggle={toggle}
             onEdit={(t) => setEditing({ task: t, isNew: false })}
-            onReorder={(activeId, overId) => setState((s) => s && { ...s, tasks: { ...s.tasks, [day]: reorderTasks(s.tasks[day], activeId, overId) } })}
+            onReorder={(activeId, overId) => mutate((s) => ({ ...s, tasks: { ...s.tasks, [day]: reorderTasks(s.tasks[day], activeId, overId) } }))}
           />
         </section>
 
@@ -346,7 +346,7 @@ export function WeeklySchedule() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={() => {
               setTimerReset((p) => p + 1);
-              setState((s) => s && (confirm === "week" ? { ...s, done: {} } : { tasks: defaultSchedule(), done: {}, weekKey: s.weekKey }));
+              mutate((s) => (confirm === "week" ? { ...s, done: {} } : { tasks: defaultSchedule(), done: {}, weekKey: s.weekKey }));
               setConfirm(null);
             }}>Confirm</AlertDialogAction>
           </AlertDialogFooter>
