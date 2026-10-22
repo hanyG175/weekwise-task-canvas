@@ -11,3 +11,4 @@
 
 - Use dnd-kit handles for pointer, touch and keyboard task reordering; reschedule within a day while preserving durations, positional gaps and task IDs so progress remains attached to tasks.
 - Keep week boundaries and task reorder logic in the browser-safe schedule data module with targeted unit tests so day navigation and resets stay consistent.
+- Keep countdown calculations in a browser-safe pure timer module; run audio and notification APIs only after interaction/effects, using wall-clock deadlines so background throttling does not accumulate drift.
