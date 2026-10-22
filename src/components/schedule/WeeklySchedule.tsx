@@ -365,7 +365,7 @@ export function WeeklySchedule() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={() => {
               setTimerReset((p) => p + 1);
-              mutate((s) => (confirm === "week" ? { ...s, done: {} } : { tasks: defaultSchedule(), done: {}, weekKey: s.weekKey }));
+              mutate((s) => (confirm === "week" ? { ...s, done: {} } : { tasks: defaultSchedule(), done: {}, weekKey: s.weekKey, updatedAt: s.updatedAt }));
               setConfirm(null);
             }}>Confirm</AlertDialogAction>
           </AlertDialogFooter>
