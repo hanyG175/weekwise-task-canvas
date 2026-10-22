@@ -11,7 +11,7 @@ export interface Task {
   note?: string | undefined;
 }
 
-export const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
+export const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 export type Day = (typeof DAYS)[number];
 export const DAY_NAMES: Record<Day, string> = {
   Mon: "Monday", Tue: "Tuesday", Wed: "Wednesday", Thu: "Thursday",
@@ -219,9 +219,10 @@ export const toMin = (t: string) => {
   return (h ?? 0) * 60 + (m ?? 0);
 };
 
-/** ISO-week key like "2026-W43"; weeks start Monday. */
+/** Sunday-start week key, numbered by the ISO week of its following Monday. */
 export function weekKey(date: Date): string {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  d.setUTCDate(d.getUTCDate() - d.getUTCDay() + 1);
   const dayNum = d.getUTCDay() || 7;
   d.setUTCDate(d.getUTCDate() + 4 - dayNum);
   const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
@@ -238,5 +239,26 @@ export function applyWeeklyReset<T extends { weekKey: string; done: Record<strin
 }
 
 export function todayDay(now: Date): Day {
-  return DAYS[(now.getDay() + 6) % 7]!;
+  return DAYS[now.getDay()] ?? "Sun";
+}
+
+/** Move a task into another position, retaining durations, gaps and check-off IDs. */
+export function reorderTasks(tasks: Task[], activeId: string, overId: string): Task[] {
+  const sorted = [...tasks].sort((a, b) => toMin(a.start) - toMin(b.start));
+  const from = sorted.findIndex((t) => t.id === activeId);
+  const to = sorted.findIndex((t) => t.id === overId);
+  if (from < 0 || to < 0 || from === to) return tasks;
+  const gaps = sorted.map((t, i) => i ? toMin(t.start) - toMin(sorted[i - 1]?.end ?? t.start) : 0);
+  const moved = sorted.splice(from, 1)[0];
+  if (!moved) return tasks;
+  sorted.splice(to, 0, moved);
+  let cursor = Math.min(...tasks.map((t) => toMin(t.start)));
+  const time = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+  return sorted.map((t, i) => {
+    cursor += gaps[i] ?? 0;
+    const duration = toMin(t.end) - toMin(t.start);
+    const result = { ...t, start: time(cursor), end: time(cursor + duration) };
+    cursor += duration;
+    return result;
+  });
 }
