@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DAY_NAMES, DAYS, toMin, type Day, type Task } from "@/lib/schedule-data";
+import { DAY_NAMES, toMin, type Day, type Task } from "@/lib/schedule-data";
 import { changeTimerTime, makeTimer, nextTimerTask, remainingSeconds, type TimerState } from "@/lib/task-timer";
 
 export function useTaskTimer(tasks: Record<Day, Task[]> | undefined, done: Record<string, boolean> | undefined, day: Day, resetKey: string) {
@@ -13,12 +13,15 @@ export function useTaskTimer(tasks: Record<Day, Task[]> | undefined, done: Recor
   const [notification, setNotification] = useState("off");
   const audio = useRef<AudioContext | null>(null);
   const alertRef = useRef<() => void>(() => {});
+  const exhaustedDay = useRef<Day | null>(null);
   const task = timer ? tasks?.[timer.day].find((t) => t.id === timer.taskId) : undefined;
 
-  useEffect(() => { setTimer(null); }, [resetKey]);
+  useEffect(() => { exhaustedDay.current = null; setTimer(null); }, [resetKey]);
   useEffect(() => {
     if (!tasks || !done) return;
-    if (timer && tasks[timer.day].some((t) => t.id === timer.taskId) && !done[timer.taskId]) return;
+    if (exhaustedDay.current === day && !timer) return;
+    if (exhaustedDay.current !== day) exhaustedDay.current = null;
+    if (timer && (timer.day === day || timer.status !== "ready") && tasks[timer.day].some((t) => t.id === timer.taskId) && !done[timer.taskId]) return;
     const first = [...tasks[day]].sort((a, b) => toMin(a.start) - toMin(b.start)).find((t) => !done[t.id]);
     setTimer(first ? { ...makeTimer(first), day } : null);
   }, [tasks, done, day, timer]);
@@ -70,13 +73,14 @@ export function useTaskTimer(tasks: Record<Day, Task[]> | undefined, done: Recor
 
   const select = (id: string) => {
     const selected = tasks?.[day].find((t) => t.id === id);
-    if (selected) setTimer({ ...makeTimer(selected), day });
+    if (selected) { exhaustedDay.current = null; setTimer({ ...makeTimer(selected), day }); }
   };
   const complete = (id: string) => {
     if (!timer || timer.taskId !== id || !tasks || !done || done[id]) return;
     const next = nextTimerTask(tasks[timer.day], done, id);
     const running = timer.status === "running" || timer.status === "finished";
     if (running) unlockSound();
+    if (!next) exhaustedDay.current = timer.day;
     setTimer(next ? { ...makeTimer(next, running, Date.now()), day: timer.day } : null);
   };
   const start = () => {
