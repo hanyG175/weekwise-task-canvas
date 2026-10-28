@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, Cloud, CloudOff, Loader2, Pencil, Plus, RotateCcw, Trash2, Undo2, ChevronLeft, ChevronRight, GripVertical, Moon, BookOpen, Hammer, Send, Map, Code2, BriefcaseBusiness, Clapperboard, ClipboardCheck, Dumbbell, Utensils, Coffee, Sparkles, Sunrise, Heart, type LucideIcon } from "lucide-react";
 import { pullSchedule, pushSchedule } from "@/lib/sheets-sync.functions";
-import { DndContext, PointerSensor, TouchSensor, KeyboardSensor, closestCenter, pointerWithin, useDndContext, useSensor, useSensors } from "@dnd-kit/core";
+import { DndContext, PointerSensor, TouchSensor, KeyboardSensor, closestCenter, useSensor, useSensors } from "@dnd-kit/core";
 import { SortableContext, useSortable, sortableKeyboardCoordinates, horizontalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import plannerIllustration from "@/assets/planner-illustration.png";
@@ -51,7 +51,6 @@ function CategoryIcon({ category, className }: { category: Category; className?:
 
 const START = 6 * 60;
 const END = 22 * 60 + 30;
-const PX = 4; // px per minute in day view
 const STORAGE = "weekly-schedule-v1";
 
 interface State { tasks: Record<Day, Task[]>; done: Record<string, boolean>; weekKey: string; updatedAt: number }
@@ -386,152 +385,106 @@ function DayTimeline({ tasks, done, nowMin, onToggle, onEdit, onReorder }: {
     useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 6 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
-  const width = (Math.max(END, ...tasks.map((t) => toMin(t.end))) - START) * PX;
-  const hours = useMemo(() => Array.from({ length: 17 }, (_, i) => 6 + i), []);
+  const sorted = useMemo(() => [...tasks].sort((a, b) => toMin(a.start) - toMin(b.start)), [tasks]);
+  const nextId = sorted.find((t) => !done[t.id])?.id;
+  const first = useRef(true);
+
+  // Slide finished cards out to the left so the next unfinished card leads the row.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const card = nextId ? el.querySelector<HTMLElement>(`[data-task-id="${nextId}"]`) : null;
+    const left = card ? card.offsetLeft - 4 : el.scrollWidth;
+    el.scrollTo({ left: Math.max(0, left), behavior: first.current ? "auto" : "smooth" });
+    first.current = false;
+  }, [nextId, tasks]);
 
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const target = nowMin >= START ? (nowMin - START) * PX - el.clientWidth / 3 : 0;
-    el.scrollTo({ left: Math.max(0, target), behavior: "smooth" });
     const onWheel = (e: WheelEvent) => {
       if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { e.preventDefault(); el.scrollBy({ left: e.deltaY * 1.5 }); }
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
-    <DndContext sensors={sensors} collisionDetection={(args) => {
-      const underPointer = pointerWithin(args);
-      return args.pointerCoordinates ? underPointer : closestCenter(args);
-    }}
+    <DndContext sensors={sensors} collisionDetection={closestCenter}
       onDragEnd={({ active, over }) => { if (over) onReorder(String(active.id), String(over.id)); }}>
-    <div ref={ref} className="scrollbar-thin mt-5 overflow-x-auto pb-3 animate-in fade-in slide-in-from-right-4 duration-500">
-      <div className="relative" style={{ width }}>
-        {/* ruler */}
-        <div className="relative h-6 border-b border-border">
-          {hours.map((h) => (
-            <span key={h} className="absolute top-0 -translate-x-1/2 font-mono text-[11px] text-muted-foreground" style={{ left: (h * 60 - START) * PX }}>
-              {String(h).padStart(2, "0")}:00
-            </span>
-          ))}
-        </div>
-        <div className="relative h-44">
-          {hours.map((h) => (
-            <div key={h} className="absolute inset-y-0 w-px bg-border" style={{ left: (h * 60 - START) * PX }} />
-          ))}
-          <SortableContext items={tasks.map((t) => t.id)} strategy={horizontalListSortingStrategy}>
-            {tasks.map((t) => <SortableTask key={t.id} t={t} done={done} nowMin={nowMin} onToggle={onToggle} onEdit={onEdit} />)}
+      <div ref={ref} className="scrollbar-thin relative mt-5 overflow-x-auto pb-3 animate-in fade-in slide-in-from-right-4 duration-500">
+        <div className="flex w-max gap-2 px-1 py-2">
+          <SortableContext items={sorted.map((t) => t.id)} strategy={horizontalListSortingStrategy}>
+            {sorted.map((t) => <SortableTask key={t.id} t={t} done={done} nowMin={nowMin} isNext={t.id === nextId} onToggle={onToggle} onEdit={onEdit} />)}
           </SortableContext>
-          {nowMin >= START && nowMin <= END && (
-            <div className="pointer-events-none absolute -top-6 bottom-0 z-10" style={{ left: (nowMin - START) * PX }}>
-              <div className="h-full w-0.5 bg-primary" />
-              <div className="absolute -top-1 -left-1 size-2.5 animate-pulse rounded-full bg-primary" />
-            </div>
-          )}
         </div>
       </div>
-    </div>
     </DndContext>
   );
 }
 
-function SortableTask({ t, done, nowMin, onToggle, onEdit }: {
-  t: Task; done: Record<string, boolean>; nowMin: number;
+function SortableTask({ t, done, nowMin, isNext, onToggle, onEdit }: {
+  t: Task; done: Record<string, boolean>; nowMin: number; isNext: boolean;
   onToggle: (id: string) => void; onEdit: (t: Task) => void;
 }) {
-  const { setNodeRef, setActivatorNodeRef, attributes, listeners, transform, isDragging, isOver } = useSortable({ id: t.id });
-  const { active } = useDndContext();
-            const s = toMin(t.start), e = toMin(t.end);
-            const w = (e - s) * PX;
-            const isDone = !!done[t.id];
-            const isNow = nowMin >= s && nowMin < e;
-            const compact = w < 130;
-            const tiny = w < 34;
-            const check = (
-              <span className={cn(
-                "flex shrink-0 items-center justify-center rounded-full border transition-all duration-300",
-                tiny ? "size-4" : "size-5",
-                isDone ? "border-primary bg-primary text-primary-foreground" : "border-foreground/30 bg-background/40",
-              )}>
-                {isDone && <Check className={tiny ? "size-2.5" : "size-3"} />}
-              </span>
-            );
-            const handle = (
-              <Button variant="ghost" size="icon" ref={setActivatorNodeRef}
-                {...attributes} {...listeners}
-                aria-label={`Reorder ${t.title}`} title="Drag to reorder · Space to pick up, arrows to move, Space to drop"
-                onClick={(ev) => ev.stopPropagation()}
-                className="size-6 shrink-0 cursor-grab touch-none p-1 text-muted-foreground active:cursor-grabbing">
-                <GripVertical className="size-4" />
-              </Button>
-            );
-            const full = (
-              <div className="flex h-full min-w-0 flex-col justify-between">
-                <div className="min-w-0">
-                  <div className={cn("flex min-w-0 items-center gap-1.5 font-mono text-[10px] font-medium uppercase", TEXT[t.cat])}>
-                    <CategoryIcon category={t.cat} className="size-4" /><span className="truncate">{CATEGORIES[t.cat].label}</span>
-                  </div>
-                  <div className={cn("mt-1 line-clamp-3 text-sm font-semibold leading-snug", isDone && "line-through")}>{t.title}</div>
-                </div>
-                <div className="flex items-end justify-between gap-1">
-                  <span className="truncate font-mono text-[10px] text-muted-foreground">{t.start} · {fmtDur(e - s)}</span>
-                  <div className="flex items-center gap-1">
-                    {!compact && handle}
-                    <Button variant="ghost"
-                      aria-label={`Edit ${t.title}`}
-                      onClick={(ev) => { ev.stopPropagation(); onEdit(t); }}
-                      className="size-6 p-1 text-muted-foreground transition hover:bg-accent hover:text-foreground"
-                    >
-                      <Pencil className="size-3" />
-                    </Button>
-                    {check}
-                  </div>
-                </div>
-              </div>
-            );
-            return (
-              <div
-                ref={setNodeRef}
-                role="button"
-                aria-label={`${t.title}, ${t.start} to ${t.end}`}
-                aria-pressed={isDone}
-                tabIndex={0}
-                title={`${t.start}–${t.end} · ${t.title}${t.note ? `\n${t.note}` : ""}`}
-                onClick={() => onToggle(t.id)}
-                onKeyDown={(ev) => ev.target === ev.currentTarget && (ev.key === "Enter" || ev.key === " ") && (ev.preventDefault(), onToggle(t.id))}
-                className={cn(
-                  "group absolute top-3 bottom-3 cursor-pointer overflow-hidden rounded-lg border border-border transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                  compact
-                    ? cn("bg-secondary/50", !active && "hover:z-20 hover:!w-[190px] hover:bg-popover hover:shadow-card focus-within:z-20 focus-within:!w-[190px] focus-within:bg-popover")
-                    : "bg-secondary/70 p-2.5 hover:-translate-y-1 hover:bg-secondary",
-                  isNow && "ring-2 ring-primary",
-                  isDragging && "z-30 opacity-80 ring-2 ring-day-selected !transition-none",
-                  isOver && !isDragging && "ring-2 ring-day-selected",
-                  isDone && "opacity-45 hover:opacity-100",
-                )}
-                style={{ left: (s - START) * PX + 1, width: Math.max(26, w - 3), transform: isDragging ? CSS.Transform.toString(transform) : undefined }}
-              >
-                <div className={cn("absolute inset-x-0 top-0 h-1", BG[t.cat])} />
-                {compact && <div className="absolute inset-x-0 top-11 z-30 flex justify-center">{handle}</div>}
-                {compact ? (
-                  <>
-                    {/* slim view: icon, check, duration stacked — no rotated text */}
-                    <div className="flex h-full flex-col items-center justify-between py-2.5 transition-opacity duration-200 group-hover:opacity-0 group-focus-within:opacity-0">
-                      <CategoryIcon category={t.cat} className="size-4" />
-                      <span className="h-8" />
-                      {!tiny && <span className="font-mono text-[9px] text-muted-foreground">{fmtDur(e - s)}</span>}
-                      {check}
-                    </div>
-                    {/* expands on hover to show full details */}
-                    <div className="absolute inset-0 w-[190px] p-2.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-within:opacity-100">
-                      {full}
-                    </div>
-                  </>
-                ) : full}
-              </div>
-            );
+  const { setNodeRef, setActivatorNodeRef, attributes, listeners, transform, transition, isDragging } = useSortable({ id: t.id });
+  const s = toMin(t.start), e = toMin(t.end);
+  const isDone = !!done[t.id];
+  const isNow = nowMin >= s && nowMin < e;
+  return (
+    <div
+      ref={setNodeRef}
+      data-task-id={t.id}
+      role="button"
+      aria-label={`${t.title}, ${t.start} to ${t.end}`}
+      aria-pressed={isDone}
+      tabIndex={0}
+      title={`${t.start}–${t.end} · ${t.title}${t.note ? `\n${t.note}` : ""}`}
+      onClick={() => onToggle(t.id)}
+      onKeyDown={(ev) => ev.target === ev.currentTarget && (ev.key === "Enter" || ev.key === " ") && (ev.preventDefault(), onToggle(t.id))}
+      className={cn(
+        "relative h-40 w-44 shrink-0 cursor-pointer overflow-hidden rounded-lg border border-border bg-secondary p-2.5 transition-colors duration-300 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        isNow && "ring-2 ring-primary",
+        isNext && !isNow && "ring-1 ring-day-selected",
+        isDragging && "z-30 shadow-card ring-2 ring-day-selected",
+        isDone && "bg-muted text-muted-foreground",
+      )}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+    >
+      <div className={cn("absolute inset-x-0 top-0 h-1", BG[t.cat])} />
+      <div className="flex h-full min-w-0 flex-col justify-between">
+        <div className="min-w-0">
+          <div className={cn("flex min-w-0 items-center gap-1.5 font-mono text-[10px] font-medium uppercase", TEXT[t.cat])}>
+            <CategoryIcon category={t.cat} className="size-4" /><span className="truncate">{CATEGORIES[t.cat].label}</span>
+          </div>
+          <div className={cn("mt-1 line-clamp-3 text-sm font-semibold leading-snug", isDone && "line-through")}>{t.title}</div>
+        </div>
+        <div className="flex items-end justify-between gap-1">
+          <span className="truncate font-mono text-[10px] text-muted-foreground">{t.start} · {fmtDur(e - s)}</span>
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="icon" ref={setActivatorNodeRef}
+              {...attributes} {...listeners}
+              aria-label={`Reorder ${t.title}`} title="Drag to reorder · Space to pick up, arrows to move, Space to drop"
+              onClick={(ev) => ev.stopPropagation()}
+              className="size-6 shrink-0 cursor-grab touch-none p-1 text-muted-foreground active:cursor-grabbing">
+              <GripVertical className="size-4" />
+            </Button>
+            <Button variant="ghost" aria-label={`Edit ${t.title}`}
+              onClick={(ev) => { ev.stopPropagation(); onEdit(t); }}
+              className="size-6 p-1 text-muted-foreground transition hover:bg-accent hover:text-foreground">
+              <Pencil className="size-3" />
+            </Button>
+            <span className={cn(
+              "flex size-5 shrink-0 items-center justify-center rounded-full border transition-all duration-300",
+              isDone ? "border-primary bg-primary text-primary-foreground" : "border-foreground/30 bg-background/40",
+            )}>
+              {isDone && <Check className="size-3" />}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function TaskDialog({ editing, onClose, onSave, onDelete }: {
