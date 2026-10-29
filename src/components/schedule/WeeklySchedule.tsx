@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, Cloud, CloudOff, Loader2, Pencil, Plus, RotateCcw, Trash2, Undo2, ChevronLeft, ChevronRight, GripVertical, Moon, BookOpen, Hammer, Send, Map, Code2, BriefcaseBusiness, Clapperboard, ClipboardCheck, Dumbbell, Utensils, Coffee, Sparkles, Sunrise, Heart, type LucideIcon } from "lucide-react";
+import { Check, Cloud, CloudOff, Loader2, Pencil, Plus, RotateCcw, Trash2, Undo2, ChevronLeft, ChevronRight, GripVertical, Moon, BookOpen, Hammer, Send, Map, Code2, BriefcaseBusiness, Clapperboard, ClipboardCheck, Dumbbell, Utensils, Coffee, Sparkles, Sunrise, Heart, Info, type LucideIcon } from "lucide-react";
 import { pullSchedule, pushSchedule } from "@/lib/sheets-sync.functions";
 import { DndContext, PointerSensor, TouchSensor, KeyboardSensor, closestCenter, useSensor, useSensors } from "@dnd-kit/core";
 import { SortableContext, useSortable, sortableKeyboardCoordinates, horizontalListSortingStrategy } from "@dnd-kit/sortable";
@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import {
-  CATEGORIES, DAYS, DAY_NAMES, applyWeeklyReset, defaultSchedule, toMin, todayDay, weekKey, reorderTasks,
+  CATEGORIES, DAYS, DAY_NAMES, applyDefaultNotes, applyWeeklyReset, defaultSchedule, toMin, todayDay, weekKey, reorderTasks,
   type Category, type Day, type Task,
 } from "@/lib/schedule-data";
 
@@ -66,7 +66,7 @@ function useSchedule() {
     } catch {
       s = { tasks: defaultSchedule(), done: {}, weekKey: weekKey(new Date()), updatedAt: 0 };
     }
-    setState(applyWeeklyReset(s, new Date()));
+    setState(applyWeeklyReset({ ...s, tasks: applyDefaultNotes(s.tasks) }, new Date()));
     const iv = setInterval(() => setState((p) => (p ? applyWeeklyReset(p, new Date()) : p)), 60000);
     return () => clearInterval(iv);
   }, []);
@@ -104,7 +104,7 @@ function useSheetSync(state: State | null, setState: React.Dispatch<React.SetSta
         if (cancelled) return;
         if (remote && remote.updatedAt > state.updatedAt) {
           skipNextPush.current = true;
-          setState(applyWeeklyReset({ ...remote, tasks: { ...defaultSchedule(), ...remote.tasks } }, new Date()));
+          setState(applyWeeklyReset({ ...remote, tasks: applyDefaultNotes({ ...defaultSchedule(), ...remote.tasks }) }, new Date()));
         } else {
           await push({ ...state, updatedAt: Date.now() });
         }
@@ -149,6 +149,7 @@ export function WeeklySchedule() {
   const now = useNow();
   const [day, setDay] = useState<Day>("Sun");
   const [editing, setEditing] = useState<{ task: Task; isNew: boolean } | null>(null);
+  const [details, setDetails] = useState<Task | null>(null);
   const [confirm, setConfirm] = useState<"week" | "defaults" | null>(null);
   const [timerReset, setTimerReset] = useState(0);
   const timer = useTaskTimer(state?.tasks, state?.done, day, `${state?.weekKey ?? ""}-${timerReset}`);
@@ -281,7 +282,7 @@ export function WeeklySchedule() {
         <section aria-label="Right now" className="flex flex-wrap items-center justify-between gap-4 border-b border-border py-5">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground"><Sunrise className="size-4 text-primary" /><h2>Right now</h2>{now && <span className="font-mono text-xs">{DAY_NAMES[today ?? day]} · {now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>}</div>
-            {currentTask ? <div className="mt-2 flex items-start gap-2"><CategoryIcon category={currentTask.cat} className="mt-1" /><div className="min-w-0"><p className="break-words font-semibold">{currentTask.title}</p><p className="mt-1 font-mono text-xs text-muted-foreground">{currentTask.start}–{currentTask.end} · {fmtDur(toMin(currentTask.end) - toMin(currentTask.start))}{state.done[currentTask.id] ? " · Already checked off" : ""}</p></div></div> : <p className="mt-2 text-sm text-muted-foreground">{now ? "No task scheduled right now" : "Checking local time…"}</p>}
+            {currentTask ? <div className="mt-2 flex items-start gap-2"><CategoryIcon category={currentTask.cat} className="mt-1" /><div className="min-w-0"><p className="break-words font-semibold">{currentTask.title}</p><p className="mt-1 font-mono text-xs text-muted-foreground">{currentTask.start}–{currentTask.end} · {fmtDur(toMin(currentTask.end) - toMin(currentTask.start))}{state.done[currentTask.id] ? " · Already checked off" : ""}</p>{currentTask.note && <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">{currentTask.note}</p>}</div></div> : <p className="mt-2 text-sm text-muted-foreground">{now ? "No task scheduled right now" : "Checking local time…"}</p>}
           </div>
           {currentTask && <Button className="max-w-full whitespace-normal text-left" disabled={!!currentRunning} onClick={startCurrentTask}><ChevronRight className="shrink-0" />{currentRunning ? "Current task running" : earlierCount ? `Skip ${earlierCount} earlier tasks & start` : "Start current task"}</Button>}
         </section>
@@ -308,6 +309,7 @@ export function WeeklySchedule() {
             nowMin={day === today ? nowMin : -1}
             onToggle={toggle}
             onEdit={(t) => setEditing({ task: t, isNew: false })}
+            onDetails={setDetails}
             onReorder={(activeId, overId) => mutate((s) => ({ ...s, tasks: { ...s.tasks, [day]: reorderTasks(s.tasks[day], activeId, overId) } }))}
           />
         </section>
