@@ -1,4 +1,5 @@
 # Schedule updates
+- [x] Detect today's current task below the timer and verify skip-and-start behavior.
 - [x] Add accessible drag-and-drop task reordering with updated times.
 - [x] Start weeks and automatic resets on Sunday.
 - [x] Add category icons and playful planner imagery.
