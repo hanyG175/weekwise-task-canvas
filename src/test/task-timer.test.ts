@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { changeTimerTime, makeTimer, nextTimerTask, remainingSeconds } from "@/lib/task-timer";
+import { changeTimerTime, currentScheduledTask, makeTimer, nextTimerTask, remainingSeconds, skipToTask } from "@/lib/task-timer";
 import { type Task } from "@/lib/schedule-data";
 
 const tasks: Task[] = [
@@ -9,6 +9,23 @@ const tasks: Task[] = [
 ];
 const focus = tasks[0] as Task;
 describe("task countdown", () => {
+  it("detects the scheduled task using local time and exclusive end boundaries", () => {
+    expect(currentScheduledTask(tasks, new Date(2026, 9, 29, 8, 49))?.id).toBe("focus");
+    expect(currentScheduledTask(tasks, new Date(2026, 9, 29, 8, 50))?.id).toBe("break");
+  });
+  it("returns no current task before, after or between scheduled tasks", () => {
+    expect(currentScheduledTask(tasks, new Date(2026, 9, 29, 7, 59))).toBeUndefined();
+    expect(currentScheduledTask(tasks, new Date(2026, 9, 29, 9, 50))).toBeUndefined();
+    expect(currentScheduledTask([focus, tasks[2] as Task], new Date(2026, 9, 29, 8, 55))).toBeUndefined();
+  });
+  it("skips earlier tasks, reopens the current task, and preserves later and other-day progress", () => {
+    expect(skipToTask(tasks, { break: true, study: true, "Fri-0": true }, "break")).toEqual({ focus: true, break: false, study: true, "Fri-0": true });
+  });
+  it("starts the current task immediately with its full duration", () => {
+    const current = currentScheduledTask(tasks, new Date(2026, 9, 29, 8, 55));
+    if (!current) throw new Error("Expected current task");
+    expect(makeTimer(current, true, 1000)).toEqual({ taskId: "break", seconds: 600, deadline: 601000, status: "running" });
+  });
   it("starts with the task duration", () => {
     expect(makeTimer(focus, true, 1000)).toEqual({ taskId: "focus", seconds: 3000, deadline: 3001000, status: "running" });
   });

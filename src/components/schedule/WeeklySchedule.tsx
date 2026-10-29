@@ -6,6 +6,7 @@ import { SortableContext, useSortable, sortableKeyboardCoordinates, horizontalLi
 import { CSS } from "@dnd-kit/utilities";
 import plannerIllustration from "@/assets/planner-illustration.png";
 import { TaskTimer, useTaskTimer } from "@/components/schedule/TaskTimer";
+import { currentScheduledTask, skipToTask } from "@/lib/task-timer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -165,6 +166,15 @@ export function WeeklySchedule() {
 
   const today = now ? todayDay(now) : null;
   const nowMin = now ? now.getHours() * 60 + now.getMinutes() : -1;
+  const currentTask = today && now ? currentScheduledTask(state.tasks[today], now) : undefined;
+  const earlierCount = today && currentTask ? state.tasks[today].filter((task) => toMin(task.start) < toMin(currentTask.start) && !state.done[task.id]).length : 0;
+  const currentRunning = currentTask && timer.timer?.taskId === currentTask.id && timer.timer?.day === today && timer.timer?.status === "running";
+  const startCurrentTask = () => {
+    if (!today || !currentTask) return;
+    setDay(today);
+    mutate((s) => ({ ...s, done: skipToTask(s.tasks[today], s.done, currentTask.id) }));
+    timer.startTask(currentTask, today);
+  };
   const progress = (d: Day) => {
     const t = state.tasks[d];
     const n = t.filter((x) => state.done[x.id]).length;
@@ -267,6 +277,14 @@ export function WeeklySchedule() {
         </nav>
 
         <TaskTimer controller={timer} tasks={state.tasks[day]} done={state.done} day={day} onComplete={toggle} />
+
+        <section aria-label="Right now" className="flex flex-wrap items-center justify-between gap-4 border-b border-border py-5">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground"><Sunrise className="size-4 text-primary" /><h2>Right now</h2>{now && <span className="font-mono text-xs">{DAY_NAMES[today ?? day]} · {now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>}</div>
+            {currentTask ? <div className="mt-2 flex items-start gap-2"><CategoryIcon category={currentTask.cat} className="mt-1" /><div className="min-w-0"><p className="break-words font-semibold">{currentTask.title}</p><p className="mt-1 font-mono text-xs text-muted-foreground">{currentTask.start}–{currentTask.end} · {fmtDur(toMin(currentTask.end) - toMin(currentTask.start))}{state.done[currentTask.id] ? " · Already checked off" : ""}</p></div></div> : <p className="mt-2 text-sm text-muted-foreground">{now ? "No task scheduled right now" : "Checking local time…"}</p>}
+          </div>
+          {currentTask && <Button className="max-w-full whitespace-normal text-left" disabled={!!currentRunning} onClick={startCurrentTask}><ChevronRight className="shrink-0" />{currentRunning ? "Current task running" : earlierCount ? `Skip ${earlierCount} earlier tasks & start` : "Start current task"}</Button>}
+        </section>
 
         {/* Day timeline */}
         <section className="mt-8 rounded-3xl border border-border bg-card/60 p-4 shadow-card backdrop-blur sm:p-6">

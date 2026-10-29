@@ -89,6 +89,11 @@ export function useTaskTimer(tasks: Record<Day, Task[]> | undefined, done: Recor
     const seconds = timer.seconds > 0 ? timer.seconds : makeTimer(task).seconds;
     setTimer({ ...timer, seconds, status: "running", deadline: Date.now() + seconds * 1000 });
   };
+  const startTask = (selected: Task, selectedDay: Day) => {
+    unlockSound();
+    exhaustedDay.current = null;
+    setTimer({ ...makeTimer(selected, true, Date.now()), day: selectedDay });
+  };
   const pause = () => setTimer((p) => p ? { ...p, seconds: remainingSeconds(p, Date.now()), deadline: null, status: "paused" } : p);
   const reset = () => { if (task && timer) setTimer({ ...makeTimer(task), day: timer.day }); };
   const adjust = (seconds: number) => setTimer((p) => p ? { ...changeTimerTime(p, seconds, Date.now()), day: p.day } : p);
@@ -98,7 +103,7 @@ export function useTaskTimer(tasks: Record<Day, Task[]> | undefined, done: Recor
     try { const permission = await Notification.requestPermission(); setNotification(permission === "granted" ? "on" : permission === "denied" ? "blocked" : "off"); }
     catch { setNotification("unavailable"); }
   };
-  return { timer, task, sound, notification, select, complete, start, pause, reset, adjust, enableNotifications,
+  return { timer, task, sound, notification, select, complete, start, startTask, pause, reset, adjust, enableNotifications,
     toggleSound: () => { unlockSound(); setSound((p) => !p); } };
 }
 
