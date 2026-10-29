@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, Cloud, CloudOff, Loader2, Pencil, Plus, RotateCcw, Trash2, Undo2, ChevronLeft, ChevronRight, GripVertical, Moon, BookOpen, Hammer, Send, Map, Code2, BriefcaseBusiness, Clapperboard, ClipboardCheck, Dumbbell, Utensils, Coffee, Sparkles, Sunrise, Heart, type LucideIcon } from "lucide-react";
+import { Check, Cloud, CloudOff, Loader2, Pencil, Plus, RotateCcw, Trash2, Undo2, ChevronLeft, ChevronRight, GripVertical, Moon, BookOpen, Hammer, Send, Map, Code2, BriefcaseBusiness, Clapperboard, ClipboardCheck, Dumbbell, Utensils, Coffee, Sparkles, Sunrise, Heart, Info, type LucideIcon } from "lucide-react";
 import { pullSchedule, pushSchedule } from "@/lib/sheets-sync.functions";
 import { DndContext, PointerSensor, TouchSensor, KeyboardSensor, closestCenter, useSensor, useSensors } from "@dnd-kit/core";
 import { SortableContext, useSortable, sortableKeyboardCoordinates, horizontalListSortingStrategy } from "@dnd-kit/sortable";
@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import {
-  CATEGORIES, DAYS, DAY_NAMES, applyWeeklyReset, defaultSchedule, toMin, todayDay, weekKey, reorderTasks,
+  CATEGORIES, DAYS, DAY_NAMES, applyDefaultNotes, applyWeeklyReset, defaultSchedule, toMin, todayDay, weekKey, reorderTasks,
   type Category, type Day, type Task,
 } from "@/lib/schedule-data";
 
@@ -66,7 +66,7 @@ function useSchedule() {
     } catch {
       s = { tasks: defaultSchedule(), done: {}, weekKey: weekKey(new Date()), updatedAt: 0 };
     }
-    setState(applyWeeklyReset(s, new Date()));
+    setState(applyWeeklyReset({ ...s, tasks: applyDefaultNotes(s.tasks) }, new Date()));
     const iv = setInterval(() => setState((p) => (p ? applyWeeklyReset(p, new Date()) : p)), 60000);
     return () => clearInterval(iv);
   }, []);
@@ -104,7 +104,7 @@ function useSheetSync(state: State | null, setState: React.Dispatch<React.SetSta
         if (cancelled) return;
         if (remote && remote.updatedAt > state.updatedAt) {
           skipNextPush.current = true;
-          setState(applyWeeklyReset({ ...remote, tasks: { ...defaultSchedule(), ...remote.tasks } }, new Date()));
+          setState(applyWeeklyReset({ ...remote, tasks: applyDefaultNotes({ ...defaultSchedule(), ...remote.tasks }) }, new Date()));
         } else {
           await push({ ...state, updatedAt: Date.now() });
         }
@@ -149,6 +149,7 @@ export function WeeklySchedule() {
   const now = useNow();
   const [day, setDay] = useState<Day>("Sun");
   const [editing, setEditing] = useState<{ task: Task; isNew: boolean } | null>(null);
+  const [details, setDetails] = useState<Task | null>(null);
   const [confirm, setConfirm] = useState<"week" | "defaults" | null>(null);
   const [timerReset, setTimerReset] = useState(0);
   const timer = useTaskTimer(state?.tasks, state?.done, day, `${state?.weekKey ?? ""}-${timerReset}`);
@@ -281,7 +282,7 @@ export function WeeklySchedule() {
         <section aria-label="Right now" className="flex flex-wrap items-center justify-between gap-4 border-b border-border py-5">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground"><Sunrise className="size-4 text-primary" /><h2>Right now</h2>{now && <span className="font-mono text-xs">{DAY_NAMES[today ?? day]} · {now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>}</div>
-            {currentTask ? <div className="mt-2 flex items-start gap-2"><CategoryIcon category={currentTask.cat} className="mt-1" /><div className="min-w-0"><p className="break-words font-semibold">{currentTask.title}</p><p className="mt-1 font-mono text-xs text-muted-foreground">{currentTask.start}–{currentTask.end} · {fmtDur(toMin(currentTask.end) - toMin(currentTask.start))}{state.done[currentTask.id] ? " · Already checked off" : ""}</p></div></div> : <p className="mt-2 text-sm text-muted-foreground">{now ? "No task scheduled right now" : "Checking local time…"}</p>}
+            {currentTask ? <div className="mt-2 flex items-start gap-2"><CategoryIcon category={currentTask.cat} className="mt-1" /><div className="min-w-0"><p className="break-words font-semibold">{currentTask.title}</p><p className="mt-1 font-mono text-xs text-muted-foreground">{currentTask.start}–{currentTask.end} · {fmtDur(toMin(currentTask.end) - toMin(currentTask.start))}{state.done[currentTask.id] ? " · Already checked off" : ""}</p>{currentTask.note && <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">{currentTask.note}</p>}</div></div> : <p className="mt-2 text-sm text-muted-foreground">{now ? "No task scheduled right now" : "Checking local time…"}</p>}
           </div>
           {currentTask && <Button className="max-w-full whitespace-normal text-left" disabled={!!currentRunning} onClick={startCurrentTask}><ChevronRight className="shrink-0" />{currentRunning ? "Current task running" : earlierCount ? `Skip ${earlierCount} earlier tasks & start` : "Start current task"}</Button>}
         </section>
@@ -308,6 +309,7 @@ export function WeeklySchedule() {
             nowMin={day === today ? nowMin : -1}
             onToggle={toggle}
             onEdit={(t) => setEditing({ task: t, isNew: false })}
+            onDetails={setDetails}
             onReorder={(activeId, overId) => mutate((s) => ({ ...s, tasks: { ...s.tasks, [day]: reorderTasks(s.tasks[day], activeId, overId) } }))}
           />
         </section>
@@ -368,6 +370,8 @@ export function WeeklySchedule() {
         onDelete={(id) => { deleteTask(id); setEditing(null); }}
       />
 
+      <TaskDetails task={details} onClose={() => setDetails(null)} />
+
       <AlertDialog open={confirm !== null} onOpenChange={(o) => !o && setConfirm(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -392,9 +396,9 @@ export function WeeklySchedule() {
   );
 }
 
-function DayTimeline({ tasks, done, nowMin, onToggle, onEdit, onReorder }: {
+function DayTimeline({ tasks, done, nowMin, onToggle, onEdit, onDetails, onReorder }: {
   tasks: Task[]; done: Record<string, boolean>; nowMin: number;
-  onToggle: (id: string) => void; onEdit: (t: Task) => void;
+  onToggle: (id: string) => void; onEdit: (t: Task) => void; onDetails: (t: Task) => void;
   onReorder: (activeId: string, overId: string) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -433,7 +437,7 @@ function DayTimeline({ tasks, done, nowMin, onToggle, onEdit, onReorder }: {
       <div ref={ref} className="scrollbar-thin relative mt-5 overflow-x-auto pb-3 animate-in fade-in slide-in-from-right-4 duration-500">
         <div className="flex w-max gap-2 px-1 py-2">
           <SortableContext items={sorted.map((t) => t.id)} strategy={horizontalListSortingStrategy}>
-            {sorted.map((t) => <SortableTask key={t.id} t={t} done={done} nowMin={nowMin} isNext={t.id === nextId} onToggle={onToggle} onEdit={onEdit} />)}
+            {sorted.map((t) => <SortableTask key={t.id} t={t} done={done} nowMin={nowMin} isNext={t.id === nextId} onToggle={onToggle} onEdit={onEdit} onDetails={onDetails} />)}
           </SortableContext>
         </div>
       </div>
@@ -441,9 +445,9 @@ function DayTimeline({ tasks, done, nowMin, onToggle, onEdit, onReorder }: {
   );
 }
 
-function SortableTask({ t, done, nowMin, isNext, onToggle, onEdit }: {
+function SortableTask({ t, done, nowMin, isNext, onToggle, onEdit, onDetails }: {
   t: Task; done: Record<string, boolean>; nowMin: number; isNext: boolean;
-  onToggle: (id: string) => void; onEdit: (t: Task) => void;
+  onToggle: (id: string) => void; onEdit: (t: Task) => void; onDetails: (t: Task) => void;
 }) {
   const { setNodeRef, setActivatorNodeRef, attributes, listeners, transform, transition, isDragging } = useSortable({ id: t.id });
   const s = toMin(t.start), e = toMin(t.end);
@@ -470,9 +474,16 @@ function SortableTask({ t, done, nowMin, isNext, onToggle, onEdit }: {
       style={{ transform: CSS.Transform.toString(transform), transition }}
     >
       <div className={cn("absolute inset-x-0 top-0 h-1", BG[t.cat])} />
+      {t.note && (
+        <Button variant="ghost" size="icon" aria-label={`What is ${t.title}?`} title="What this is & how to do it"
+          onClick={(ev) => { ev.stopPropagation(); onDetails(t); }}
+          className="absolute right-1 top-1.5 z-10 size-5 shrink-0 rounded-full p-0 text-muted-foreground hover:bg-accent hover:text-foreground">
+          <Info className="size-3.5" />
+        </Button>
+      )}
       <div className="flex h-full min-w-0 flex-col justify-between">
         <div className="min-w-0">
-          <div className={cn("flex min-w-0 items-center gap-1.5 font-mono text-[10px] font-medium uppercase", TEXT[t.cat])}>
+          <div className={cn("flex min-w-0 items-center gap-1.5 font-mono text-[10px] font-medium uppercase", TEXT[t.cat], t.note && "pr-6")}>
             <CategoryIcon category={t.cat} className="size-4" /><span className="truncate">{CATEGORIES[t.cat].label}</span>
           </div>
           <div className={cn("mt-1 line-clamp-3 text-sm font-semibold leading-snug", isDone && "line-through")}>{t.title}</div>
@@ -547,8 +558,9 @@ function TaskDialog({ editing, onClose, onSave, onDelete }: {
               </Select>
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="note">Notes</Label>
-              <Textarea id="note" rows={3} value={draft.note ?? ""} onChange={(e) => setDraft({ ...draft, note: e.target.value })} />
+              <Label htmlFor="note">Description</Label>
+              <p className="text-xs text-muted-foreground">What this is and how to do it — shown under "Right now" and on the card's info button.</p>
+              <Textarea id="note" rows={4} value={draft.note ?? ""} onChange={(e) => setDraft({ ...draft, note: e.target.value })} />
             </div>
             {draft && toMin(draft.end) <= toMin(draft.start) && <p className="text-sm text-destructive">End time must be after start time.</p>}
           </div>
@@ -562,6 +574,30 @@ function TaskDialog({ editing, onClose, onSave, onDelete }: {
             <Button disabled={!valid} onClick={() => draft && onSave({ ...draft, title: draft.title.trim() })}>Save</Button>
           </div>
         </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** What a task is and how to run it, read straight off the schedule note. */
+function TaskDetails({ task, onClose }: { task: Task | null; onClose: () => void }) {
+  return (
+    <Dialog open={!!task} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-lg">
+        {task && (
+          <>
+            <DialogHeader>
+              <div className="flex flex-wrap items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
+                <span className={cn("flex items-center gap-1.5", TEXT[task.cat])}><CategoryIcon category={task.cat} className="size-4" />{CATEGORIES[task.cat].label}</span>
+                <span aria-hidden="true">·</span><span>{task.start}–{task.end}</span>
+                <span aria-hidden="true">·</span><span>{fmtDur(toMin(task.end) - toMin(task.start))}</span>
+              </div>
+              <DialogTitle>{task.title}</DialogTitle>
+            </DialogHeader>
+            {task.note && <p className="whitespace-pre-line text-sm leading-relaxed text-muted-foreground">{task.note}</p>}
+          </>
+        )}
+        <DialogFooter><Button variant="outline" onClick={onClose}>Close</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   );
