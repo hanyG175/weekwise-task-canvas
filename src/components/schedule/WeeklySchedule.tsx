@@ -370,6 +370,8 @@ export function WeeklySchedule() {
         onDelete={(id) => { deleteTask(id); setEditing(null); }}
       />
 
+      <TaskDetails task={details} onClose={() => setDetails(null)} />
+
       <AlertDialog open={confirm !== null} onOpenChange={(o) => !o && setConfirm(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -394,9 +396,9 @@ export function WeeklySchedule() {
   );
 }
 
-function DayTimeline({ tasks, done, nowMin, onToggle, onEdit, onReorder }: {
+function DayTimeline({ tasks, done, nowMin, onToggle, onEdit, onDetails, onReorder }: {
   tasks: Task[]; done: Record<string, boolean>; nowMin: number;
-  onToggle: (id: string) => void; onEdit: (t: Task) => void;
+  onToggle: (id: string) => void; onEdit: (t: Task) => void; onDetails: (t: Task) => void;
   onReorder: (activeId: string, overId: string) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -435,7 +437,7 @@ function DayTimeline({ tasks, done, nowMin, onToggle, onEdit, onReorder }: {
       <div ref={ref} className="scrollbar-thin relative mt-5 overflow-x-auto pb-3 animate-in fade-in slide-in-from-right-4 duration-500">
         <div className="flex w-max gap-2 px-1 py-2">
           <SortableContext items={sorted.map((t) => t.id)} strategy={horizontalListSortingStrategy}>
-            {sorted.map((t) => <SortableTask key={t.id} t={t} done={done} nowMin={nowMin} isNext={t.id === nextId} onToggle={onToggle} onEdit={onEdit} />)}
+            {sorted.map((t) => <SortableTask key={t.id} t={t} done={done} nowMin={nowMin} isNext={t.id === nextId} onToggle={onToggle} onEdit={onEdit} onDetails={onDetails} />)}
           </SortableContext>
         </div>
       </div>
@@ -443,9 +445,9 @@ function DayTimeline({ tasks, done, nowMin, onToggle, onEdit, onReorder }: {
   );
 }
 
-function SortableTask({ t, done, nowMin, isNext, onToggle, onEdit }: {
+function SortableTask({ t, done, nowMin, isNext, onToggle, onEdit, onDetails }: {
   t: Task; done: Record<string, boolean>; nowMin: number; isNext: boolean;
-  onToggle: (id: string) => void; onEdit: (t: Task) => void;
+  onToggle: (id: string) => void; onEdit: (t: Task) => void; onDetails: (t: Task) => void;
 }) {
   const { setNodeRef, setActivatorNodeRef, attributes, listeners, transform, transition, isDragging } = useSortable({ id: t.id });
   const s = toMin(t.start), e = toMin(t.end);
@@ -472,9 +474,16 @@ function SortableTask({ t, done, nowMin, isNext, onToggle, onEdit }: {
       style={{ transform: CSS.Transform.toString(transform), transition }}
     >
       <div className={cn("absolute inset-x-0 top-0 h-1", BG[t.cat])} />
+      {t.note && (
+        <Button variant="ghost" size="icon" aria-label={`What is ${t.title}?`} title="What this is & how to do it"
+          onClick={(ev) => { ev.stopPropagation(); onDetails(t); }}
+          className="absolute right-1 top-1.5 z-10 size-5 shrink-0 rounded-full p-0 text-muted-foreground hover:bg-accent hover:text-foreground">
+          <Info className="size-3.5" />
+        </Button>
+      )}
       <div className="flex h-full min-w-0 flex-col justify-between">
         <div className="min-w-0">
-          <div className={cn("flex min-w-0 items-center gap-1.5 font-mono text-[10px] font-medium uppercase", TEXT[t.cat])}>
+          <div className={cn("flex min-w-0 items-center gap-1.5 font-mono text-[10px] font-medium uppercase", TEXT[t.cat], t.note && "pr-6")}>
             <CategoryIcon category={t.cat} className="size-4" /><span className="truncate">{CATEGORIES[t.cat].label}</span>
           </div>
           <div className={cn("mt-1 line-clamp-3 text-sm font-semibold leading-snug", isDone && "line-through")}>{t.title}</div>
@@ -549,8 +558,9 @@ function TaskDialog({ editing, onClose, onSave, onDelete }: {
               </Select>
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="note">Notes</Label>
-              <Textarea id="note" rows={3} value={draft.note ?? ""} onChange={(e) => setDraft({ ...draft, note: e.target.value })} />
+              <Label htmlFor="note">Description</Label>
+              <p className="text-xs text-muted-foreground">What this is and how to do it — shown under "Right now" and on the card's info button.</p>
+              <Textarea id="note" rows={4} value={draft.note ?? ""} onChange={(e) => setDraft({ ...draft, note: e.target.value })} />
             </div>
             {draft && toMin(draft.end) <= toMin(draft.start) && <p className="text-sm text-destructive">End time must be after start time.</p>}
           </div>
