@@ -47,6 +47,91 @@ const SLOT_NOTES: Partial<Record<Category, string>> = {
   C: "Write, record or post content.",
 };
 
+/**
+ * What each task means and how to run it, taken from the original schedule note.
+ * Keyed by task title so the same task reads the same on every day.
+ */
+const HOW_TO: Record<string, string> = {
+  "Wake, water, wudu, curtains": "Wake at 06:00 — the same time every day, weekends included; it's the strongest single lever on your sleep. Water, wudu, open the curtains.",
+  "Wake, wudu": "Wake and make wudu. Keep the wake time fixed; weekends move by 30 minutes at most.",
+  "Wake, wudu, Fajr": "Wake, wudu, pray Fajr. The wake time holds on weekends too — 30 minutes of drift at most.",
+  Fajr: "Pray Fajr (about 10 min). Rule: at the adhan, pause whatever you're doing, pray, resume. Times are estimates — use your mosque's calendar.",
+  Dhuhr: "Pray Dhuhr (adhan about 12:23; it barely moves through the year). About 10 min, then back to it.",
+  Asr: "Pray Asr (about 15:29 now, roughly a minute earlier each day through December). From about Nov 8 it falls inside the 14:40–15:25 block — just pause 10 minutes there.",
+  Maghrib: "Pray Maghrib (about 17:55 now, 17:31 by mid-November). On workout days, pray on arrival at the gym while it's still in time.",
+  Isha: "Pray Isha (about 19:16 now, moving earlier).",
+  "Quran (~4 pages)": "20 min of Quran after Fajr, about 4 pages. At 4 pages a day a 604-page mushaf takes roughly 5 months — adjust to your own pace.",
+  "Quran (25 min)": "25 min of Quran — the weekend extension of the morning read.",
+  "Quran: Surah Al-Kahf": "Friday Quran: Surah Al-Kahf (traditionally read on Fridays), plus your usual pages if time allows. About 35 min.",
+  "Walk outside + breathing": "10–20 min of outdoor daylight within an hour of waking. First 5 min: slow diaphragmatic breathing — inhale low into the belly, long slow exhale.",
+  "Walk at sunrise": "Walk at sunrise — the daylight-within-an-hour-of-waking habit.",
+  "Longer walk": "A longer walk outside. Daylight in the first hour after waking is what anchors the sleep schedule.",
+  "Speaking: read aloud & listen": "Read aloud for 10 min and record it, then listen back for 5 min. Keep the recordings — the comparison over weeks is the progress.",
+  "Speaking: read aloud & record": "Read aloud and record it. Friday's recording is your weekly speaking test.",
+  "Speaking practice": "Speaking practice: read aloud, record, listen back. 15 min, every day.",
+  Breakfast: "Breakfast at 07:15. Caffeine is fine now — never after 14:00.",
+  "Slow breakfast": "Slow breakfast — the weekend's one unhurried thing.",
+  "Desk setup, today's top 3": "Set the desk up and write today's top 3 before anything else. If only those three get done, the day still counts.",
+  "Top 3": "Write today's top 3 before work starts.",
+  "S1 · Build proof": "P — Build proof: the offer C demo (LLM workflow automation) and portfolio projects. Roadmap practice projects count here too. Real numbers only; label demos as demos.",
+  "S2 · Build proof": "P — Build proof, block 2. Keep the same project open from S1 instead of starting something new.",
+  "S2 · Roadmap": "R — Roadmap, one stage at a time: Stage 0 (logging CLI chatbot) → 1 (context engineering) → 3 (tools & MCP) → 5 (agentic RAG), then 2 when client work needs it.",
+  "Build proof": "P — Build proof: keep the project you opened earlier in the day going. Real numbers only; label demos as demos.",
+  "Demo #2 / finish demo video": "P — Demo #2, or finish the demo video. This is the thing you post later today, so land it here.",
+  "S3 · LeetCode": "L — LeetCode, 50-min session: 0–5 read it, restate it in your own words, write 2 examples · 5–25 attempt it alone, no hints · 25–30 stuck? take one hint, not the solution · 30–40 study a clean solution and why it works · 40–50 close it, rewrite from memory, log the pattern. Cap it at about 4 h/week.",
+  "S4 · Roadmap": "R — Roadmap: one stage at a time, in this order: 0 (logging CLI chatbot) → 1 (context engineering) → 3 (tools & MCP) → 5 (agentic RAG), then 2 when client work needs it. If a stage runs a week over, cut the project's scope — don't skip the definition-of-done checks.",
+  "S5 · Outreach: research & write": "O — Outreach part 1: research 3 prospects and write 3 personalized messages. Don't send them yet — sending is S6.",
+  "S6 · Outreach: send & follow up": "O — Outreach part 2: send those 3 messages, post 1 community answer, submit 1 freelance application, and chase any follow-up older than 4 days.",
+  "S7 · Job applications": "A — Job applications: one tailored application (CV tweak plus a short note) and one personal message to someone already at that company.",
+  "S3 · Job applications": "A — Job applications: one tailored application (CV tweak plus a short note) and one personal message to someone already at that company.",
+  "S7 · Content": "C — Content: write this week's posts. Social feeds only inside C blocks — never before 10:00 or after 21:00.",
+  "S4 · Record Shorts voiceovers": "C — Record this week's Shorts voiceovers. This doubles as your weekly speaking test.",
+  "Post the demo on LinkedIn/X": "C — Post the demo on LinkedIn and X. This is the week's public proof of work; don't let it slip.",
+  "Prospect list + follow-ups": "O — Build the prospect list (40 prospects by the end of week 2) and run the follow-ups.",
+  "Weekly review & planning": "W — Weekly review: fill the trackers, check next week's prayer times and shift S6/S7 if Asr crept into a block, change one thing, plan the top 3. Ask: did I protect sleep, workouts and the free half-days? What am I proud of this week?",
+  "LeetCode: re-solve 2, 1 timed new": "L — Sunday session: re-solve 2 problems from last week from scratch (about 20 min), then 1 timed new problem (about 30 min).",
+  Break: "Stand up, get water, look out the window. No phone — a break only counts if it's off-screen.",
+  "Long break": "A real break: walk, tea, stretch. Still no phone, and no caffeine after 14:00.",
+  "Long break: walk, tea": "A real break: walk, tea, stretch. Still no phone, and no caffeine after 14:00.",
+  "Break & wudu": "Break and wudu — you're heading into Dhuhr.",
+  "Buffer & wudu": "Buffer and wudu before Dhuhr.",
+  "Break and wudu": "Break and wudu — you're heading into Dhuhr.",
+  "Lunch, away from desk": "Lunch away from the desk — actually away. Keep the last big meal 2+ hours before bed.",
+  Lunch: "Lunch, away from the desk.",
+  "Rest / nap ≤20 min": "Nap 20 min at most, or just eyes closed with no screen. Never later than 14:00 or it costs tonight's sleep.",
+  "Snack & water": "Snack and water, away from the desk. Work stopped at 16:30 — this is the boundary, don't cross it back.",
+  "S8 · Buffer (catch up or rest)": "S8 buffer: catch up on whatever slipped this week. If nothing slipped, rest — don't invent work to fill it.",
+  "Paper book / quiet reset": "Quiet reset before the gym: paper book, no screens. Pre-workout snack already eaten.",
+  "Gym bag, travel": "Pack the gym bag and travel over.",
+  "Gym prep & travel": "Gym prep and travel — 45 min, unhurried.",
+  Workout: "Workout 18:00–19:00. Sun/Tue/Thu/Sat with a rest day between each; swap days if your gym needs it.",
+  "Shower, travel home": "Shower and travel home.",
+  Dinner: "Dinner at 19:30. Keep the last big meal 2+ hours before bed.",
+  "Dinner (protein + carbs)": "Post-workout dinner: protein plus carbs.",
+  "Light dinner": "Light dinner.",
+  "Free": "Genuinely free. Aim for one real human contact a day — a call, a message, a person.",
+  "Free, wudu": "Free until Maghrib; make wudu near the end.",
+  "Free: walk, call family, hobby": "Long walk, call family or a friend, cook, hobby. One real human contact a day is a requirement, not a nice-to-have.",
+  "Free: family, friends, hobby": "Free: family, friends, hobby. No work.",
+  "Free, no work": "Free, no work. Friday is the day that keeps the week sane — protect it.",
+  "Free: book, rest, tidy up": "Book, rest, tidy up.",
+  "Free half-day: nap, book, family": "Free half-day: nap 20 min at most, book 60 min, family or friends, errands. Asr at 15:25–15:40.",
+  "Free half-day: chores, nap, book": "Free half-day: chores 45 min, nap 20 min at most, book 60 min, family. Asr at 15:25–15:40.",
+  "Free: errands, book (60 min)": "Errands, or 60 min of book.",
+  "Free: family, book": "Family, or a book.",
+  "Get ready for Jumu'ah": "Get ready for Jumu'ah. Work stops for the week at noon — nothing work-shaped after this.",
+  "Jumu'ah": "Jumu'ah — follow your mosque's timing.",
+  "Head out": "Head out to meet friends.",
+  "Friends (Maghrib with them)": "Friends, 17:00–19:00. Pray Maghrib with them.",
+  Home: "Home.",
+  "Log trackers, tomorrow's top 3": "Last screen task of the day: fill the habit tracker (5 prayers, Quran, speaking 15 min, workout, book 30 min, LeetCode, 3 outreach messages, job application, lights out on time, screens off 21:00) and write tomorrow's top 3.",
+  "Screens off · Paper book": "Screens off at 21:00, lights low. 30 min of a paper book — paper only; technical reading belongs in the R slots.",
+  "Stretch, breathing, journal": "Stretch 10 min, slow breathing 5 min, journal 5 min: 3 wins from today plus tomorrow's first task.",
+  "Wash up, adhkar, lay out clothes": "Wash up, bedtime adhkar/dua, lay out tomorrow's clothes.",
+  "In bed, lights low → lights out 22:15": "In bed, lights low. Lights out 22:15, wake 06:00 — 7h45. Can't sleep within 20–30 min? Get up, dim light, paper book, back to bed when sleepy. No phone.",
+  "Lay out clothes for Monday": "Lay out Monday's clothes. Small thing, makes the 06:00 wake-up easier.",
+};
+
 const morning: Row[] = [
   ["06:00", "06:10", "Wake, water, wudu, curtains", "routine"],
   ["06:10", "06:20", "Fajr", "prayer"],
@@ -198,7 +283,7 @@ function build(day: Day, rows: Row[]): Task[] {
   return [...rows, ...windDown].map(([start, end, title, cat, note], i) => ({
     id: `${day}-${i}`,
     start, end, title, cat,
-    note: note ?? SLOT_NOTES[cat],
+    note: note ?? HOW_TO[title] ?? SLOT_NOTES[cat],
   }));
 }
 
@@ -212,6 +297,25 @@ export function defaultSchedule(): Record<Day, Task[]> {
     Sat: build("Sat", saturday),
     Sun: build("Sun", sunday),
   };
+}
+
+/** The one-line defaults shipped with the first version of the schedule. */
+const LEGACY_NOTES = new Set(Object.values(SLOT_NOTES).filter((v): v is string => !!v));
+
+/**
+ * Refreshes descriptions on a saved schedule: a task still carrying an empty or
+ * original one-line default gets the current description for its title.
+ * Notes you wrote yourself are left untouched.
+ */
+export function applyDefaultNotes(tasks: Record<Day, Task[]>): Record<Day, Task[]> {
+  const defaults = defaultSchedule();
+  const byTitle = new Map<string, string>();
+  for (const d of DAYS) for (const t of defaults[d]) if (t.note && !byTitle.has(t.title)) byTitle.set(t.title, t.note);
+  const out = {} as Record<Day, Task[]>;
+  for (const d of DAYS) out[d] = (tasks[d] ?? []).map((t) =>
+    t.note && !LEGACY_NOTES.has(t.note) ? t : { ...t, note: byTitle.get(t.title) ?? t.note },
+  );
+  return out;
 }
 
 export const toMin = (t: string) => {
