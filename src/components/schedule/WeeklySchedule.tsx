@@ -579,6 +579,30 @@ function TaskDialog({ editing, onClose, onSave, onDelete }: {
   );
 }
 
+/** What a task is and how to run it, read straight off the schedule note. */
+function TaskDetails({ task, onClose }: { task: Task | null; onClose: () => void }) {
+  return (
+    <Dialog open={!!task} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-lg">
+        {task && (
+          <>
+            <DialogHeader>
+              <div className="flex flex-wrap items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
+                <span className={cn("flex items-center gap-1.5", TEXT[task.cat])}><CategoryIcon category={task.cat} className="size-4" />{CATEGORIES[task.cat].label}</span>
+                <span aria-hidden="true">·</span><span>{task.start}–{task.end}</span>
+                <span aria-hidden="true">·</span><span>{fmtDur(toMin(task.end) - toMin(task.start))}</span>
+              </div>
+              <DialogTitle>{task.title}</DialogTitle>
+            </DialogHeader>
+            {task.note && <p className="whitespace-pre-line text-sm leading-relaxed text-muted-foreground">{task.note}</p>}
+          </>
+        )}
+        <DialogFooter><Button variant="outline" onClick={onClose}>Close</Button></DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function CategoryProgress({ tasks, done, day }: {
   tasks: Record<Day, Task[]>; done: Record<string, boolean>; day: Day;
 }) {
