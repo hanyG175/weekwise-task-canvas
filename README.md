@@ -2,6 +2,8 @@
 
 A calm, visual weekly planner for turning a routine into an actionable schedule. Weekwise Task Canvas lays out each day horizontally so you can see the shape of your week, adjust tasks in place, and stay focused with a built-in countdown.
 
+<img width="1920" height="2765" alt="Weekly-Schedule-—-Minute-by-Minute-11-19-2026_03_07_PM" src="https://github.com/user-attachments/assets/9f96cb5c-fd80-4eb0-9544-8f9b692b38d5" />
+
 ## Highlights
 
 - **Horizontal weekly view** for scanning your entire routine at a glance
@@ -76,6 +78,9 @@ npm run build
 ```
 
 Deploy the generated TanStack Start application to a Node-compatible host. For deployments using Google Sheets sync, configure the two environment variables above as server-side secrets and do not expose them as client-side variables.
+
+Quick access link: https://weekwise-task-canvas.lovable.app<img width="1920" height="2765" alt="Weekly-Schedule-—-Minute-by-Minute-11-19-2026_03_07_PM" src="https://github.com/user-attachments/assets/b4f828bf-879a-46fc-90b4-eed89f09d9e1" />
+
 
 ## Contributing
 
